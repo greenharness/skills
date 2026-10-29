@@ -12,7 +12,17 @@ root=$(cd "${1:-$(dirname "$0")/..}" && pwd)
 
 PATTERN='daddyshome|/Users/|\.netrc|mtls|homelab|fredericrous/decisions|\bwork\.[a-z][a-z-]+|ADR-[0-9]{4}|~/\.claude/tools/|relais:begin'
 rc=0
-hits=$(grep -rnEIi "$PATTERN" "$root/parts" "$root/README.md" "$root/LICENSE" | grep -v 'check: allow (' || true)
+for f in "$root/parts" "$root/README.md" "$root/LICENSE"; do
+    [ -e "$f" ] || { echo "check: $f is missing" >&2; exit 2; }
+done
+# grep exits 1 on no match and 2 on an error; an error must never read as clean.
+grc=0
+raw=$(grep -rnEIi "$PATTERN" "$root/parts" "$root/README.md" "$root/LICENSE") || grc=$?
+if [ "$grc" -ge 2 ]; then
+    echo "check: the scan itself failed (grep exit $grc)" >&2
+    exit 2
+fi
+hits=$(printf '%s\n' "$raw" | grep -v 'check: allow (' | grep -v '^$' || true)
 if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     echo "check: machine-specific content above (pattern: $PATTERN)" >&2
