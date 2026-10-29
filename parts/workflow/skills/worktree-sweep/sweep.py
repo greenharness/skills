@@ -1,0 +1,1522 @@
+#!/usr/bin/env python3
+"""Sweep git worktrees whose work is implemented, pushed, merged and released.
+
+Verdicts, and what each means:
+
+  SWEEP    every gate passed -- safe to remove. Nothing is lost: the branch is
+           still on the forge and the worktree is one `git worktree add` away.
+  HOLD     a gate said "not yet" and we trust that answer (open PR, dirty tree,
+           unpushed commits, merged but not yet in a release tag).
+  UNKNOWN  a gate could not be evaluated (forge unreachable, ambiguous state).
+           Treated exactly like HOLD for removal purposes.
+
+The distinction between HOLD and UNKNOWN is the whole point of this tool. Both
+forges in use here fail in ways that are indistinguishable from a negative
+answer if you are careless: `gh` prints nothing and exits 0-ish on an API
+timeout, and Forgejo's /pulls endpoint returns the bare *repo* object (a dict,
+not a list) when handed an unsupported `state=all`. Either one, read naively,
+says "no merged PR" -- which for a *keep* decision is harmless and for a
+*delete* decision is data loss. So every forge call that does not return a
+positively-parsed PR yields UNKNOWN, and UNKNOWN never removes anything.
+
+Two false HOLDs fixed 2026-09-11 (both erred safe, both gave the wrong reason):
+
+  * The ahead-count ran on cached refs. GitHub deletes a branch on merge, so
+    the stale origin/<branch> sat at the pre-squash commit and a finished
+    branch read "1 unpushed commit". Now: one `fetch --prune` per repo first,
+    and a branch with no surviving remote ref is proven pushed by ancestry of
+    origin/<base> or by the merged PR's head sha equalling HEAD.
+  * Forgejo lookups used /pulls/{base}/{head} with base=<default branch>, so a
+    PR stacked on another feature branch 404'd into "no pull request found".
+    Now a 404 consults the open-PR list (one request per repo) by head.
+
+Content gate added 2026-10-14 (the person's rule: "if the changes are on
+origin main, it's safe to delete"). The gates above trace a *branch* to a
+merged PR, so a detached checkout, or a branch that never needed a PR, was
+held forever even when its HEAD sat on origin/<base> and it held nothing
+else: ten such worktrees, 2.9 GB, on the day. Now a worktree whose HEAD is an
+ancestor of origin/<base>, with a clean tree, is SWEEP by content -- removing
+it loses nothing. Uncommitted edits to CLAUDE.md / AGENTS.md (generated agent
+guidance) do not count as work; they are discarded at removal. A worktree
+whose HEAD moved within MIN_IDLE_HOURS is still held: an agent that just ran
+`worktree add -b feat/x origin/main` has a HEAD on base and no edits yet.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import threading
+import time
+import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field
+from pathlib import Path
+
+HOME = Path.home()
+STATE_DIR = HOME / ".claude" / "worktree-sweep"
+STATE_FILE = STATE_DIR / "state.json"
+LOG_FILE = STATE_DIR / "sweep.log"
+DEFAULT_ROOTS = [HOME / "Developer"]
+
+# A self-hosted Forgejo is opt-in: set SWEEP_FORGEJO_HOST to its host name.
+# Its token is read from the netrc file; a client certificate, when the host asks
+# for one, comes from SWEEP_FORGEJO_CERT and SWEEP_FORGEJO_KEY.
+FORGEJO_HOST = os.environ.get("SWEEP_FORGEJO_HOST", "")
+_cert = os.environ.get("SWEEP_FORGEJO_CERT", "")
+_key = os.environ.get("SWEEP_FORGEJO_KEY", "")
+FORGEJO_CERT = Path(_cert).expanduser() if _cert else None
+FORGEJO_KEY = Path(_key).expanduser() if _key else None
+NETRC = HOME / ".netrc"  # check: allow (the standard netrc file; the host is configured)
+
+# The forge is slow over this path -- a single PR lookup measured 13-17s.
+FORGE_TIMEOUT = 60
+GIT_TIMEOUT = 120
+
+SWEEP, HOLD, UNKNOWN = "SWEEP", "HOLD", "UNKNOWN"
+
+# Content gate (see the module docstring). Uncommitted edits to these files
+# are generated agent guidance, not work; they are discarded at removal.
+DROPPABLE_DIRTY = {"CLAUDE.md", "AGENTS.md"}
+# A HEAD that moved more recently than this may be a task that just started
+# from origin/<base> and has not committed yet; the content gate holds it.
+MIN_IDLE_HOURS = 24
+
+# A forge that is down costs FORGE_TIMEOUT * retries *per branch*. With seven
+# worktrees on one host that is minutes of dead waiting for an answer already
+# known to be UNKNOWN. After this many consecutive failures, stop asking.
+CIRCUIT_TRIP = 3
+_circuit: dict[str, int] = {}
+_circuit_lock = threading.Lock()
+
+
+def circuit_open(forge: str) -> bool:
+    with _circuit_lock:
+        return _circuit.get(forge, 0) >= CIRCUIT_TRIP
+
+
+def circuit_record(forge: str, ok: bool):
+    with _circuit_lock:
+        _circuit[forge] = 0 if ok else _circuit.get(forge, 0) + 1
+
+
+# process helpers
+
+
+def run(args, cwd=None, timeout=GIT_TIMEOUT):
+    """Run a command. Returns (ok, stdout). ok is False on ANY failure path."""
+    try:
+        p = subprocess.run(
+            args,
+            cwd=str(cwd) if cwd else None,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        return False, ""
+    return p.returncode == 0, p.stdout.strip()
+
+
+def git(repo, *args, timeout=GIT_TIMEOUT):
+    return run(["git", "-C", str(repo), *args], timeout=timeout)
+
+
+# model
+
+
+@dataclass
+class Worktree:
+    path: Path
+    primary: Path
+    branch: str | None          # None => detached HEAD
+    head: str
+    locked: bool = False
+    prunable: bool = False
+
+    verdict: str = UNKNOWN
+    reason: str = ""
+    pr: str = ""
+    release: str = ""
+    size_kb: int = 0
+    # How "nothing unpushed" was established. "remote-ref": compared against the
+    # branch's own origin ref. "on-base": HEAD is an ancestor of origin/<base>.
+    # "pr-head": no remote ref survives, so the merged PR's head sha must equal
+    # HEAD -- that is proven only after the forge lookup, in classify().
+    pushed: str = ""
+    # Tracked guidance files (DROPPABLE_DIRTY) with uncommitted edits, restored
+    # by remove() before `git worktree remove`, which refuses a modified tree.
+    drop: list[str] = field(default_factory=list)
+
+    @property
+    def name(self) -> str:
+        try:
+            return str(self.path.relative_to(HOME / "Developer"))
+        except ValueError:
+            return f"{self.primary.name}:{self.path.name}"
+
+
+@dataclass
+class Repo:
+    path: Path
+    forge: str = "none"         # github | forgejo | none
+    owner: str = ""
+    name: str = ""
+    base: str = "main"
+    has_vtags: bool = False
+    worktrees: list[Worktree] = field(default_factory=list)
+    # Per-repo, once-only work shared by every worktree's classification.
+    # None = not attempted yet; the lock keeps 4 workers from racing it.
+    fetched: bool | None = None
+    open_prs: list | None = None            # forgejo: cached open-PR list
+    open_prs_failed: bool = False
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+
+def ensure_fetched(repo: Repo) -> bool:
+    """`git fetch --prune` once per repo, before any ahead/behind arithmetic.
+
+    Without it the ahead-count compares against whatever remote-tracking ref
+    happens to be cached. GitHub deletes the branch on merge, so the stale
+    `origin/<branch>` lingers at the pre-squash commit and a finished branch
+    reads "1 unpushed commit" (seen on amont-agent chore/release-2.12.0, whose
+    HEAD *was* the squash commit already on main). Prune makes that ref
+    disappear; the pr-head proof in classify() then takes over.
+
+    A failed fetch is not fatal -- the gates still run on cached refs -- but
+    every verdict that leans on them says so.
+    """
+    with repo.lock:
+        if repo.fetched is None:
+            ok, _ = git(repo.path, "fetch", "origin", "--prune", "-q", timeout=FORGE_TIMEOUT)
+            repo.fetched = ok
+        return repo.fetched
+
+
+def stale_note(repo: Repo) -> str:
+    return "" if repo.fetched else " (fetch failed -- refs may be stale)"
+
+
+# discovery
+
+
+def parse_remote(url: str):
+    """git@host:owner/repo.git or https://host/owner/repo(.git) -> (forge, owner, repo)."""
+    if not url:
+        return "none", "", ""
+    host = path = ""
+    if url.startswith(("http://", "https://")):
+        u = urllib.parse.urlparse(url)
+        host, path = u.hostname or "", u.path.lstrip("/")
+    elif "@" in url and ":" in url:
+        hostpart, _, path = url.partition(":")
+        host = hostpart.rpartition("@")[2]
+    if path.endswith(".git"):
+        path = path[:-4]
+    parts = [p for p in path.split("/") if p]
+    if len(parts) < 2:
+        return "none", "", ""
+    owner, name = parts[-2], parts[-1]
+    if host == "github.com":
+        return "github", owner, name
+    if FORGEJO_HOST and host == FORGEJO_HOST:
+        return "forgejo", owner, name
+    return "none", owner, name
+
+
+def find_primaries(roots, max_depth=3) -> set[Path]:
+    """Primary checkouts (a real .git *directory*) under roots. No subprocess."""
+    primaries: set[Path] = set()
+    for root in roots:
+        root = Path(root).expanduser()
+        if not root.is_dir():
+            continue
+        for dirpath, dirnames, _ in os.walk(root):
+            depth = len(Path(dirpath).relative_to(root).parts)
+            if depth >= max_depth:
+                dirnames[:] = []
+                continue
+            dirnames[:] = [d for d in dirnames if d not in {"node_modules", ".venv", "target", "dist"}]
+            if ".git" in dirnames:
+                # A linked worktree has .git as a *file*; only directories are primaries.
+                if (Path(dirpath) / ".git").is_dir():
+                    primaries.add(Path(dirpath).resolve())
+                dirnames.remove(".git")
+    return primaries
+
+
+def discover(roots, max_depth=3) -> list[Repo]:
+    """Find primary checkouts and their linked worktrees -- wherever those live
+    (/tmp, $TMPDIR, a scratchpad): `git worktree list` knows them all."""
+    repos: list[Repo] = []
+    for primary in sorted(find_primaries(roots, max_depth)):
+        ok, out = git(primary, "worktree", "list", "--porcelain")
+        if not ok:
+            continue
+        repo = Repo(path=primary)
+        ok_r, url = git(primary, "remote", "get-url", "origin")
+        if ok_r:
+            repo.forge, repo.owner, repo.name = parse_remote(url)
+        ok_b, ref = git(primary, "symbolic-ref", "refs/remotes/origin/HEAD")
+        if ok_b and ref:
+            repo.base = ref.rsplit("/", 1)[-1]
+        ok_t, tags = git(primary, "tag", "-l", "v*")
+        repo.has_vtags = ok_t and bool(tags.strip())
+
+        cur = {}
+        entries = []
+        for line in out.splitlines() + [""]:
+            if not line.strip():
+                if cur:
+                    entries.append(cur)
+                cur = {}
+                continue
+            key, _, val = line.partition(" ")
+            cur[key] = val
+        for e in entries:
+            wt_path = Path(e.get("worktree", "")).resolve()
+            if wt_path == primary:
+                continue                       # the primary checkout is never swept
+            branch = e.get("branch")
+            if branch:
+                branch = branch.replace("refs/heads/", "")
+            repo.worktrees.append(
+                Worktree(
+                    path=wt_path,
+                    primary=primary,
+                    branch=None if "detached" in e else branch,
+                    head=e.get("HEAD", ""),
+                    locked="locked" in e,
+                    prunable="prunable" in e,
+                )
+            )
+        if repo.worktrees:
+            repos.append(repo)
+    return repos
+
+
+# forge adapters -- every failure path returns None (=> UNKNOWN)
+
+
+def forgejo_token():
+    try:
+        for line in NETRC.read_text().splitlines():
+            f = line.split()
+            if len(f) >= 6 and f[0] == "machine" and f[1] == FORGEJO_HOST:
+                return f[5]
+    except OSError:
+        pass
+    return None
+
+
+def pr_github(repo: Repo, branch: str):
+    ok, out = run(
+        [
+            "gh", "pr", "list",
+            "--repo", f"{repo.owner}/{repo.name}",
+            "--head", branch,
+            "--state", "all",
+            "--limit", "10",
+            "--json", "number,state,mergedAt,mergeCommit,headRefOid,baseRefName",
+        ],
+        timeout=FORGE_TIMEOUT,
+    )
+    if not ok or not out:
+        return None                            # timeout / auth / rate limit -> UNKNOWN
+    try:
+        data = json.loads(out)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, list):
+        return None
+    if not data:
+        return {"state": "NO-PR"}
+    merged = [p for p in data if p.get("state") == "MERGED"]
+    p = merged[0] if merged else data[0]
+    return {
+        "number": p.get("number"),
+        "state": p.get("state", ""),
+        "merge_sha": ((p.get("mergeCommit") or {}) or {}).get("oid", "") or "",
+        "head_sha": p.get("headRefOid") or "",
+        "base": p.get("baseRefName") or "",
+    }
+
+
+def forgejo_get(repo: Repo, path: str):
+    """GET one Forgejo API path. Returns (http_code, parsed_json) or (None, None)
+    on any transport failure -- callers must map that to UNKNOWN, never NO-PR."""
+    tok = forgejo_token()
+    if not tok:
+        return None, None
+    cert = []
+    if FORGEJO_CERT or FORGEJO_KEY:
+        if not (FORGEJO_CERT and FORGEJO_KEY and FORGEJO_CERT.exists() and FORGEJO_KEY.exists()):
+            return None, None
+        cert = ["--cert", str(FORGEJO_CERT), "--key", str(FORGEJO_KEY)]
+    ok, out = run(
+        [
+            "curl", "-sS", "--max-time", str(FORGE_TIMEOUT),
+            *cert,
+            "-H", f"Authorization: token {tok}",
+            "-w", "\n%{http_code}",
+            f"https://{FORGEJO_HOST}/api/v1/repos/{repo.owner}/{repo.name}{path}",
+        ],
+        timeout=FORGE_TIMEOUT + 10,
+    )
+    if not ok or not out:
+        return None, None
+    body, _, code = out.rpartition("\n")
+    code = code.strip()
+    try:
+        return code, json.loads(body) if body.strip() else None
+    except json.JSONDecodeError:
+        return code, None
+
+
+def forgejo_open_prs(repo: Repo):
+    """The repo's open PRs, fetched once and shared by every branch lookup.
+
+    `state=open` is the one listing that answers quickly on this forge (the
+    closed listing is what times out). Returns None if it could not be read --
+    and that is sticky, so a dead forge costs one request, not one per branch.
+    """
+    with repo.lock:
+        if repo.open_prs is not None or repo.open_prs_failed:
+            return repo.open_prs
+        prs: list = []
+        page = 1
+        while True:
+            code, data = forgejo_get(repo, f"/pulls?state=open&limit=50&page={page}")
+            if code != "200" or not isinstance(data, list):
+                repo.open_prs_failed = True
+                return None
+            prs.extend(p for p in data if isinstance(p, dict) and "number" in p and "head" in p)
+            if len(data) < 50:
+                break
+            page += 1
+        repo.open_prs = prs
+        return prs
+
+
+def pr_forgejo(repo: Repo, branch: str):
+    # /pulls/{base}/{head} answers in one request. Paging /pulls?state=closed
+    # instead takes many requests against a slow forge and times out.
+    code, p = forgejo_get(
+        repo,
+        f"/pulls/{urllib.parse.quote(repo.base, safe='')}/{urllib.parse.quote(branch, safe='')}",
+    )
+    if code is None:
+        return None
+    if code == "404":
+        # Not "no PR" yet: this endpoint is keyed on the base branch, so a PR
+        # stacked on another feature branch (#688 -> #687's branch) is
+        # invisible to it. Ask the open-PR list by head before concluding.
+        prs = forgejo_open_prs(repo)
+        if prs is None:
+            return None                        # could not check -> UNKNOWN
+        for o in prs:
+            if (o.get("head") or {}).get("ref") == branch:
+                return {
+                    "number": o.get("number"),
+                    "state": "OPEN",
+                    "merge_sha": "",
+                    "head_sha": (o.get("head") or {}).get("sha") or "",
+                    "base": (o.get("base") or {}).get("ref") or "",
+                }
+        return {"state": "NO-PR"}
+    if code != "200":
+        return None
+    # Guard the documented trap: an unsupported query makes this endpoint hand
+    # back the repo object. A PR always carries an integer "number" and a "head".
+    if not isinstance(p, dict) or "number" not in p or "head" not in p:
+        return None
+    return {
+        "number": p.get("number"),
+        "state": "MERGED" if p.get("merged_at") else p.get("state", "").upper(),
+        "merge_sha": p.get("merge_commit_sha") or "",
+        "head_sha": (p.get("head") or {}).get("sha") or "",
+        "base": (p.get("base") or {}).get("ref") or "",
+    }
+
+
+def lookup_pr(repo: Repo, branch: str):
+    fn = {"github": pr_github, "forgejo": pr_forgejo}.get(repo.forge)
+    if fn is None:
+        return None
+    for attempt in range(2):
+        # Re-checked every attempt, not just once up front: with N workers all
+        # blocked on the same dead host, the breaker has to be able to open
+        # *underneath* an in-flight wave, or every worker pays the full retry.
+        if circuit_open(repo.forge):
+            return None
+        res = fn(repo, branch)
+        if res is not None:
+            circuit_record(repo.forge, True)
+            return res
+        circuit_record(repo.forge, False)   # per attempt, so the breaker trips inside wave 1
+        if attempt == 0 and not circuit_open(repo.forge):
+            time.sleep(2)
+    return None
+
+
+# classification
+
+
+# amont's push rehearsal checks the pushed tip out at
+# $TMPDIR/amont-push-<pid>-<16 hex> (`worktree add --detach`, pushed_tree.rs)
+# and removes it on Drop. One still registered means that process died before
+# Drop -- or is alive right now: two seen 2026-10-07 had vanished minutes later,
+# rehearsals in flight. So the owning pid must be dead.
+AMONT_PUSH_RE = re.compile(r"^amont-push-(\d+)-[0-9a-f]{16}$")
+
+# relais checks a run's candidate out under its own state directory
+# (<state>/worktrees/<run>/task, <state>/verify/<run>/verify-base) and owns
+# its lifecycle: only relais can tell a dead run from a live one, so the
+# sweep never removes these -- it names the run and the command that does.
+RELAIS_STATE = Path(os.environ.get("RELAIS_STATE_DIR") or HOME / ".local" / "state" / "relais")
+RELAIS_RUN_RE = re.compile(r"^run-[0-9a-f]+-[0-9a-f]+$")
+
+
+def relais_run_of(path: Path) -> str | None:
+    """The relais run a worktree belongs to, if it lives in relais's state."""
+    try:
+        rel = path.resolve().relative_to(RELAIS_STATE.resolve())
+    except (ValueError, OSError):
+        return None
+    parts = rel.parts
+    if len(parts) >= 2 and parts[0] in {"worktrees", "verify"} and RELAIS_RUN_RE.match(parts[1]):
+        return parts[1]
+    return None
+AMONT_PUSH_MIN_AGE = 3600
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except OSError:
+        return True                        # EPERM: exists, someone else's
+    return True
+
+
+def amont_push_leftover(wt: Worktree, repo: Repo):
+    """SWEEP a dead rehearsal's snapshot. It is amont's, never edited by hand,
+    and HEAD is the pushed tip -- but each of these is checked, not assumed:
+    owner pid dead, older than an hour (pid reuse aside, a slow prepare is
+    still a live one), clean tree, HEAD still on some ref of the repo."""
+    pid = int(AMONT_PUSH_RE.match(wt.path.name).group(1))
+    if pid_alive(pid):
+        wt.verdict, wt.reason = HOLD, f"amont push rehearsal in flight (pid {pid} alive)"
+        return
+    try:
+        age = time.time() - (wt.path / ".git").stat().st_mtime
+    except OSError:
+        wt.verdict, wt.reason = UNKNOWN, "amont snapshot: cannot stat .git"
+        return
+    if age < AMONT_PUSH_MIN_AGE:
+        wt.verdict, wt.reason = HOLD, f"amont snapshot only {int(age // 60)}m old"
+        return
+    ok, dirty = git(wt.path, "status", "--porcelain")
+    if not ok:
+        wt.verdict, wt.reason = UNKNOWN, "git status failed"
+        return
+    if dirty:
+        wt.verdict, wt.reason = HOLD, f"amont snapshot has {len(dirty.splitlines())} uncommitted change(s)"
+        return
+    ok, refs = git(repo.path, "for-each-ref", "--count=1", "--contains", wt.head, "--format=%(refname)")
+    if not ok:
+        wt.verdict, wt.reason = UNKNOWN, "could not check which refs contain HEAD"
+        return
+    if not refs:
+        wt.verdict, wt.reason = HOLD, f"amont snapshot HEAD {wt.head[:12]} is on no ref"
+        return
+    wt.verdict, wt.reason = SWEEP, f"dead amont push rehearsal (pid {pid}), HEAD on {refs}"
+
+
+def head_idle_hours(wt: Worktree) -> float | None:
+    """Hours since this worktree's HEAD last moved (its reflog, else HEAD).
+    Not the index: `git status` rewrites it, so this tool would reset it."""
+    ok, gitdir = git(wt.path, "rev-parse", "--absolute-git-dir")
+    if not ok or not gitdir:
+        return None
+    for name in ("logs/HEAD", "HEAD"):
+        p = Path(gitdir) / name
+        if p.exists():
+            return (time.time() - p.stat().st_mtime) / 3600
+    return None
+
+
+def content_gate(wt: Worktree, repo: Repo) -> bool:
+    """Decide by content alone: HEAD on origin/<base> and nothing else held.
+    Returns True when it set a final verdict. Runs after the dirty check, so
+    the tree is already clean save for DROPPABLE_DIRTY files."""
+    ok, _ = git(wt.path, "merge-base", "--is-ancestor", "HEAD", f"origin/{repo.base}")
+    if not ok:
+        # Not on base (or git failed -- the safe reading). A branch goes on to
+        # the PR gates; a detached HEAD has nothing else to be traced by.
+        if wt.branch is None:
+            wt.verdict, wt.reason = HOLD, f"detached HEAD {wt.head[:12]} not on origin/{repo.base}"
+            return True
+        return False
+    idle = head_idle_hours(wt)
+    if idle is None:
+        wt.verdict, wt.reason = UNKNOWN, "could not read the HEAD reflog age"
+        return True
+    if idle < MIN_IDLE_HOURS:
+        if wt.branch is None:
+            wt.verdict = HOLD
+            wt.reason = f"on origin/{repo.base}, but HEAD moved {idle:.0f}h ago (< {MIN_IDLE_HOURS}h)"
+            return True
+        return False  # a fresh task branch: let the PR gates speak
+    wt.verdict = SWEEP
+    dropped = f", drops edits to {', '.join(wt.drop)}" if wt.drop else ""
+    wt.reason = f"HEAD on origin/{repo.base}, nothing else held{dropped}"
+    return True
+
+
+def local_gates(wt: Worktree, repo: Repo) -> bool:
+    """Cheap, offline gates. Returns True only if still a candidate."""
+    cwd = START_CWD
+    if cwd is not None and (wt.path == cwd or wt.path in cwd.parents):
+        wt.verdict, wt.reason = HOLD, "in use (current working directory)"
+        return False
+    if wt.locked:
+        wt.verdict, wt.reason = HOLD, "worktree is locked"
+        return False
+    if (wt.path / ".no-sweep").exists():
+        wt.verdict, wt.reason = HOLD, "opted out (.no-sweep)"
+        return False
+    if wt.prunable or not wt.path.exists():
+        wt.verdict, wt.reason = SWEEP, "prunable (path gone)"
+        return False
+    if wt.branch is None:
+        if AMONT_PUSH_RE.match(wt.path.name):
+            amont_push_leftover(wt, repo)
+            return False
+        run = relais_run_of(wt.path)
+        if run is not None:
+            wt.verdict, wt.reason = HOLD, f"relais run {run} owns it -- relais resume --retire {run}"
+            return False
+        # No branch to trace to a PR; the content gate below is the only way
+        # a detached checkout is ever swept.
+    elif wt.branch in {repo.base, "main", "master"}:
+        wt.verdict, wt.reason = HOLD, f"checked out on {wt.branch}"
+        return False
+
+    # Two lists rather than `status --porcelain`: run() strips stdout, which
+    # eats the leading space of a ` M path` first line and shifts its path.
+    ok, tracked = git(wt.path, "diff", "--name-only", "HEAD")
+    ok2, untracked = git(wt.path, "ls-files", "--others", "--exclude-standard")
+    if not (ok and ok2):
+        wt.verdict, wt.reason = UNKNOWN, "git status failed"
+        return False
+    work = untracked.splitlines()
+    for path in tracked.splitlines():
+        (wt.drop if Path(path).name in DROPPABLE_DIRTY else work).append(path)
+    if work:
+        wt.verdict, wt.reason = HOLD, f"{len(work)} uncommitted change(s)"
+        return False
+
+    # Everything below is ref arithmetic, so refresh the refs first -- and
+    # prune, so a branch the forge deleted on merge stops masquerading as a
+    # remote ref frozen at its pre-squash commit.
+    ensure_fetched(repo)
+
+    if content_gate(wt, repo):
+        return False
+    if wt.branch is None:
+        return False
+
+    # Compare against the branch's OWN remote ref when there is one, not
+    # whatever `@{upstream}` happens to be. A branch created with
+    # `git switch -c <name> origin/main` tracks origin/main, so once it is
+    # squash-merged its commit is in no upstream and the branch reads as
+    # "1 unpushed commit" — a false HOLD on work that is finished. Observed
+    # on this tool's own release branch.
+    upstream = None
+    if git(wt.path, "rev-parse", "--verify", "-q", f"refs/remotes/origin/{wt.branch}")[0]:
+        upstream = f"origin/{wt.branch}"
+    else:
+        ok, tracked = git(wt.path, "rev-parse", "--abbrev-ref", "@{upstream}")
+        if ok and tracked and tracked != f"origin/{repo.base}":
+            upstream = tracked
+    if upstream:
+        ok, ahead = git(wt.path, "rev-list", "--count", f"{upstream}..HEAD")
+        if not ok:
+            wt.verdict, wt.reason = UNKNOWN, "could not compare against upstream"
+            return False
+        if ahead != "0":
+            wt.verdict, wt.reason = HOLD, f"{ahead} unpushed commit(s){stale_note(repo)}"
+            return False
+        wt.pushed = "remote-ref"
+        return True
+
+    # No remote ref of its own. After --prune that is what every merged GitHub
+    # branch looks like, so it is NOT "never pushed" yet. Two proofs remain:
+    # HEAD already sits on origin/<base> (fast-forward, or the branch was reset
+    # to the squash commit), or -- decided later, with the forge's answer --
+    # the merged PR's head sha IS this HEAD.
+    ok, _ = git(wt.path, "merge-base", "--is-ancestor", "HEAD", f"origin/{repo.base}")
+    wt.pushed = "on-base" if ok else "pr-head"
+    return True
+
+
+def classify(wt: Worktree, repo: Repo):
+    if not local_gates(wt, repo):
+        return
+
+    pr = lookup_pr(repo, wt.branch)
+    if pr is None:
+        wt.verdict, wt.reason = UNKNOWN, f"{repo.forge} unreachable -- refusing to guess"
+        return
+    if pr.get("state") == "NO-PR":
+        if wt.pushed == "pr-head":
+            wt.verdict, wt.reason = HOLD, "no remote ref and no pull request -- never pushed"
+        else:
+            wt.verdict, wt.reason = HOLD, f"no pull request found (none open, none merged into {repo.base})"
+        return
+
+    wt.pr = f"#{pr.get('number')}:{pr.get('state')}"
+    # A PR whose base is another feature branch is stacked: merging it lands
+    # nothing on <base>, so say so -- the reader otherwise assumes main.
+    into = f" into {pr['base']}" if pr.get("base") and pr["base"] != repo.base else ""
+    if pr.get("state") != "MERGED":
+        wt.verdict, wt.reason = HOLD, f"PR #{pr.get('number')} is {pr.get('state').lower()}{into}"
+        return
+    if into:
+        wt.verdict, wt.reason = HOLD, f"PR #{pr.get('number')} merged{into}, not {repo.base}"
+        return
+
+    if wt.pushed == "pr-head":
+        # The only remaining proof that this HEAD ever left the machine.
+        head_sha = pr.get("head_sha", "")
+        if not head_sha:
+            wt.verdict, wt.reason = UNKNOWN, "no remote ref, and forge gave no PR head to compare"
+            return
+        if head_sha != wt.head:
+            wt.verdict = HOLD
+            wt.reason = (f"PR #{pr.get('number')} merged at {head_sha[:12]} but HEAD is "
+                         f"{wt.head[:12]} -- local commits after the merge?")
+            return
+
+    sha = pr.get("merge_sha", "")
+    if not repo.has_vtags:
+        # a repo with zero v* tags ships on merge (Flux, say), so a release
+        # gate there would mean nothing is ever swept. Merge is the release.
+        wt.verdict = SWEEP
+        wt.reason = f"PR #{pr.get('number')} merged (repo has no release tags)"
+        return
+
+    if not sha:
+        wt.verdict, wt.reason = UNKNOWN, "merged, but forge returned no merge commit"
+        return
+    ok, _ = git(repo.path, "cat-file", "-e", sha + "^{commit}")
+    if not ok:
+        git(repo.path, "fetch", "origin", "--tags", "-q")
+        ok, _ = git(repo.path, "cat-file", "-e", sha + "^{commit}")
+        if not ok:
+            wt.verdict, wt.reason = UNKNOWN, f"merge commit {sha[:12]} not present locally"
+            return
+    ok, tags = git(repo.path, "tag", "--contains", sha)
+    if not ok:
+        wt.verdict, wt.reason = UNKNOWN, "could not read tags"
+        return
+    vtags = [t for t in tags.splitlines() if t.startswith("v")]
+    if not vtags:
+        wt.verdict = HOLD
+        wt.reason = f"PR #{pr.get('number')} merged, awaiting a release tag"
+        return
+    wt.release = sorted(vtags)[-1]
+    wt.verdict = SWEEP
+    wt.reason = f"PR #{pr.get('number')} merged, released in {wt.release}"
+
+
+# actions
+
+
+def du_kb(path: Path) -> int:
+    ok, out = run(["du", "-sk", str(path)], timeout=180)
+    if ok and out:
+        try:
+            return int(out.split()[0])
+        except (ValueError, IndexError):
+            pass
+    return 0
+
+
+def measure(wt: Worktree):
+    wt.size_kb = du_kb(wt.path)
+
+
+def human(kb: int) -> str:
+    if kb <= 0:
+        return "-"
+    for unit, div in (("G", 1024 * 1024), ("M", 1024)):
+        if kb >= div:
+            return f"{kb / div:.1f}{unit}"
+    return f"{kb}K"
+
+
+def log(msg: str):
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    with LOG_FILE.open("a") as fh:
+        fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {msg}\n")
+
+
+# language servers (fleet-lsp's children)
+#
+# Claude Code's LSP tool runs `fleet-lsp serve <language>` once per session,
+# and fleet-lsp starts one server per repository or worktree it is asked
+# about (rust-analyzer, gopls, pyright, typescript-language-server), with
+# that checkout as its working directory. Nothing stops a server when its
+# checkout goes away: on 2026-10-29 twelve rust-analyzers of deleted
+# worktrees held enough memory that swap was 20 of 21.5 GB. So a removal
+# also stops the servers rooted in what it removed, and every sweep stops
+# servers whose working directory no longer exists. Only direct children of
+# a `fleet-lsp` process are touched: an editor's own servers are not ours.
+
+LSP_PARENT = "fleet-lsp"
+# How long a SIGTERMed server gets to exit before SIGKILL.
+LSP_GRACE_SECONDS = 3.0
+
+
+@dataclass
+class LangServer:
+    pid: int
+    command: str
+    cwd: Path | None
+
+
+def _process_table() -> list[tuple[int, int, str]]:
+    ok, out = run(["ps", "-Ao", "pid=,ppid=,comm="], timeout=30)
+    rows = []
+    if not ok:
+        return rows
+    for line in out.splitlines():
+        parts = line.split(None, 2)
+        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
+            rows.append((int(parts[0]), int(parts[1]), parts[2].strip()))
+    return rows
+
+
+def language_servers() -> list[LangServer]:
+    """fleet-lsp's servers, each with its working directory (None when it
+    could not be read)."""
+    table = _process_table()
+    parents = {pid for pid, _, comm in table if Path(comm).name == LSP_PARENT}
+    servers = [(pid, Path(comm).name) for pid, ppid, comm in table if ppid in parents]
+    if not servers:
+        return []
+    cwds: dict[int, Path] = {}
+    ok, out = run(["lsof", "-a", "-d", "cwd", "-Fpn", "-p", ",".join(str(p) for p, _ in servers)],
+                  timeout=30)
+    current = None
+    for line in out.splitlines() if out else []:
+        if line.startswith("p") and line[1:].isdigit():
+            current = int(line[1:])
+        elif line.startswith("n") and current is not None:
+            cwds[current] = Path(line[1:])
+    return [LangServer(pid, command, cwds.get(pid)) for pid, command in servers]
+
+
+def _descendants(pid: int, table: list[tuple[int, int, str]]) -> list[int]:
+    out, frontier = [], [pid]
+    while frontier:
+        nxt = [child for child, ppid, _ in table if ppid in frontier]
+        out.extend(nxt)
+        frontier = nxt
+    return out
+
+
+def stop_server(server: LangServer, why: str) -> bool:
+    """SIGTERM the server and what it started (tsserver runs under node), then
+    SIGKILL whatever is still there after LSP_GRACE_SECONDS. fleet-lsp starts
+    a fresh one if that checkout is ever asked about again."""
+    import signal
+    tree = [server.pid] + _descendants(server.pid, _process_table())
+    for pid in tree:
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            return False
+    deadline = time.time() + LSP_GRACE_SECONDS
+    while time.time() < deadline and any(pid_alive(p) for p in tree):
+        time.sleep(0.1)
+    for pid in tree:
+        if pid_alive(pid):
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    log(f"LSP-STOPPED pid={server.pid} {server.command} cwd={server.cwd} ({why})")
+    return True
+
+
+def _within(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (ValueError, OSError):
+        return False
+
+
+def orphan_servers(servers: list[LangServer]) -> list[LangServer]:
+    """Servers whose working directory no longer exists."""
+    return [s for s in servers if s.cwd is not None and not s.cwd.exists()]
+
+
+def report_orphan_servers(apply: bool):
+    orphans = orphan_servers(language_servers())
+    if not orphans:
+        return
+    print()
+    for s in orphans:
+        print(f"ORPHAN-LSP pid {s.pid:<7} {s.command:<26} {s.cwd}")
+    if not apply:
+        print(f"{len(orphans)} language server(s) of deleted checkouts — re-run with --apply to stop them.")
+        return
+    stopped = sum(stop_server(s, "checkout gone") for s in orphans)
+    print(f"Stopped {stopped} language server(s) of deleted checkouts.")
+
+
+def remove(wt: Worktree, prune_branch: bool = False) -> tuple[bool, str]:
+    """Remove a SWEEP worktree. Never --force: an unexpected untracked file
+    must abort the removal, not be bulldozed."""
+    if wt.prunable or not wt.path.exists():
+        ok, _ = git(wt.primary, "worktree", "prune")
+        if ok:
+            log(f"PRUNED {wt.path} (stale registration)")
+            return True, "pruned"
+        return False, "prune failed"
+
+    if wt.drop:
+        # Generated guidance edits (DROPPABLE_DIRTY), the only dirt the gates
+        # let through. Restore them, never --force the removal.
+        ok, _ = git(wt.path, "restore", "--staged", "--worktree", "--source=HEAD", "--", *wt.drop)
+        if not ok:
+            return False, f"could not discard edits to {', '.join(wt.drop)}"
+        log(f"DROPPED {wt.path} uncommitted {' '.join(wt.drop)}")
+
+    # Read before removal: once the directory is gone, a server's cwd can no
+    # longer be resolved against it.
+    rooted = [s for s in language_servers() if s.cwd is not None and _within(s.cwd, wt.path)]
+    ok, out = run(["git", "-C", str(wt.primary), "worktree", "remove", str(wt.path)])
+    if not ok:
+        return False, "git worktree remove refused"
+    for s in rooted:
+        stop_server(s, f"worktree {wt.path} removed")
+    detail = f"released={wt.release}" if wt.release else "no-release-tag-gate"
+    if wt.pushed == "" and wt.reason.startswith("HEAD on origin/"):
+        detail = "content-gate"
+    log(f"REMOVED {wt.path} branch={wt.branch} pr={wt.pr} {detail}")
+    if wt.branch and prune_branch:
+        # `-D`, not `-d`: both forges squash-merge, so `-d` always refuses.
+        # Off by default -- GitHub deletes the remote branch on merge (verified:
+        # amont fix/trust-per-worktree 404s), so the local ref can be the last
+        # named handle on the pre-squash commits. They stay reachable via
+        # refs/pull/<n>/head and the object store, but a branch ref is free and
+        # a worktree is not: the disk win is the worktree, so keep the ref.
+        git(wt.primary, "branch", "-D", wt.branch)
+        log(f"BRANCH-DELETED {wt.branch} in {wt.primary}")
+    return True, "removed"
+
+
+# reporting
+
+
+def save_state(repos: list[Repo]):
+    """Persist the audit for --nudge to read.
+
+    A run in which every forge lookup failed (forge down, laptop offline) carries
+    no information -- it says UNKNOWN about everything. Writing that over a good
+    snapshot would make --nudge go quiet for a week and hide real accumulation,
+    so a wholly-degraded run leaves the previous state alone.
+    """
+    live = [w for r in repos for w in r.worktrees if w.path.exists()]
+    forge_answered = [w for w in live if w.pr or "unreachable" not in w.reason]
+    if live and not forge_answered and STATE_FILE.exists():
+        print("[worktree-sweep] every forge lookup failed — keeping the previous "
+              "snapshot rather than recording a blind one.", file=sys.stderr)
+        return
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    fresh = [
+        {
+            "path": str(w.path), "repo": r.path.name, "branch": w.branch,
+            "verdict": w.verdict, "reason": w.reason, "pr": w.pr,
+            "release": w.release, "size_kb": w.size_kb,
+        }
+        for r in repos for w in r.worktrees
+        if w.path.exists()
+    ]
+    ts = time.time()
+    if REPO_SCOPE is not None:
+        # A `--repo X` run (worktree-task's finish step) audited one repo. It
+        # used to overwrite the whole snapshot with that repo alone -- 3 of 60
+        # worktrees seen 2026-10-07 -- blinding --nudge to every other repo.
+        # Replace only X's entries, and keep the previous timestamp: the
+        # other repos were not re-audited, so the snapshot is no fresher.
+        try:
+            old = json.loads(STATE_FILE.read_text())
+        except (OSError, json.JSONDecodeError):
+            old = None
+        if old is None:
+            return                         # no full audit to amend; a partial one is not a snapshot
+        kept = [w for w in old.get("worktrees", []) if w.get("repo") != REPO_SCOPE]
+        fresh = kept + fresh
+        ts = old.get("ts", ts)
+    STATE_FILE.write_text(json.dumps({"ts": ts, "worktrees": fresh}, indent=2))
+
+
+def count_linked_worktrees(roots) -> int:
+    """Linked worktrees of every primary under roots, wherever they live.
+
+    Reads each primary's .git/worktrees/ registrations instead of globbing for
+    .git files under the roots: a worktree made in /tmp or a scratchpad is
+    registered there but sits nowhere under ~/Developer. A stale registration
+    (path gone) counts too -- it is exactly what the sweep prunes."""
+    n = 0
+    for primary in find_primaries(roots):
+        reg = primary / ".git" / "worktrees"
+        try:
+            n += sum(1 for d in reg.iterdir() if (d / "gitdir").is_file())
+        except OSError:
+            pass
+    return n
+
+
+def nudge():
+    """Fast, offline, silent-unless-actionable. Runs as a SessionStart hook, so
+    it must never make a network call and must never delete anything."""
+    scratch_nudge()
+    n_wt = count_linked_worktrees(DEFAULT_ROOTS)
+    if n_wt == 0:
+        return 0
+    stale_days = None
+    if STATE_FILE.exists():
+        try:
+            ts = json.loads(STATE_FILE.read_text()).get("ts", 0)
+            stale_days = int((time.time() - ts) / 86400)
+        except (json.JSONDecodeError, OSError):
+            pass
+    if stale_days is not None and stale_days < 7:
+        try:
+            data = json.loads(STATE_FILE.read_text())
+        except (json.JSONDecodeError, OSError):
+            data = {"worktrees": []}
+        sweepable = [w for w in data.get("worktrees", []) if w.get("verdict") == SWEEP]
+        if not sweepable:
+            return 0
+        kb = sum(w.get("size_kb", 0) for w in sweepable)
+        print(f"[worktree-sweep] {len(sweepable)} worktree(s) sweepable, {human(kb)} — run /worktree-sweep")
+        return 0
+    when = "never" if stale_days is None else f"{stale_days}d ago"
+    print(f"[worktree-sweep] {n_wt} linked worktree(s); last swept {when} — run /worktree-sweep")
+    return 0
+
+
+# Claude Code scratch session directories
+#
+# Claude Code keeps per-session temp state at
+#   <tmp root>/<project slug>/<session id>/{scratchpad,tasks}
+# where <tmp root> is $CLAUDE_CODE_TMPDIR/claude-<uid>, defaulting to
+# /tmp/claude-<uid> (deliberately not $TMPDIR -- on macOS that is
+# /var/folders/...; the override is named in the binary's own messages).
+# The matching transcript is ~/.claude/projects/<slug>/<session id>.jsonl,
+# and its mtime is the best "last active" signal: it is written on every turn,
+# including on a resume, while the scratch dir may sit untouched for hours.
+
+SCRATCH_DAYS = 7
+PROJECTS_DIR = HOME / ".claude" / "projects"
+SESSION_ID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
+
+def scratch_root() -> Path:
+    base = os.environ.get("CLAUDE_CODE_TMPDIR") or "/tmp"
+    return Path(base) / f"claude-{os.getuid()}"
+
+
+@dataclass
+class ScratchDir:
+    path: Path
+    slug: str
+    session: str
+    last_active: float = 0.0
+    size_kb: int = 0
+    verdict: str = HOLD
+    reason: str = ""
+
+    @property
+    def name(self) -> str:
+        slug = self.slug if len(self.slug) <= 48 else "…" + self.slug[-47:]
+        return f"{slug}/{self.session[:8]}"
+
+    @property
+    def idle_days(self) -> int:
+        return int((time.time() - self.last_active) / 86400)
+
+
+def list_scratch(root: Path) -> list[ScratchDir]:
+    out: list[ScratchDir] = []
+    try:
+        slugs = [p for p in root.iterdir() if p.is_dir() and not p.is_symlink()]
+    except OSError:
+        return out
+    for slug_dir in slugs:
+        try:
+            # Session ids are UUIDs; anything else is Claude Code's own state
+            # (e.g. bundled-skills/<version>), not a session to judge.
+            sessions = [p for p in slug_dir.iterdir()
+                        if p.is_dir() and not p.is_symlink() and SESSION_ID_RE.match(p.name)]
+        except OSError:
+            continue
+        for s in sessions:
+            sd = ScratchDir(path=s, slug=slug_dir.name, session=s.name)
+            # Directory mtimes are NOT activity: something prunes these dirs
+            # nightly (observed: scratchpad/ and tasks/ of a 3-day-idle session
+            # all stamped 00:00 today), and every deletion bumps the parent's
+            # mtime. Trust the transcript; fall back to the dir only without one.
+            try:
+                sd.last_active = (PROJECTS_DIR / sd.slug / f"{sd.session}.jsonl").stat().st_mtime
+            except OSError:
+                try:
+                    sd.last_active = s.stat().st_mtime
+                except OSError:
+                    continue
+            out.append(sd)
+    return out
+
+
+def newest_file_mtime(top: Path) -> float:
+    """Newest mtime of any non-directory under top, skipping .git internals.
+    Directories are excluded for the reason given in list_scratch."""
+    newest = 0.0
+    for dirpath, dirnames, filenames in os.walk(top):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        for n in filenames:
+            try:
+                newest = max(newest, os.lstat(os.path.join(dirpath, n)).st_mtime)
+            except OSError:
+                pass
+    return newest
+
+
+def git_checkouts(top: Path) -> list[tuple[Path, bool]]:
+    """(checkout dir, is_linked_worktree) for every .git found under top."""
+    found = []
+    for dirpath, dirnames, filenames in os.walk(top):
+        if ".git" in dirnames:
+            found.append((Path(dirpath), False))
+            dirnames.remove(".git")
+        elif ".git" in filenames:
+            found.append((Path(dirpath), True))
+        dirnames[:] = [d for d in dirnames if d != "node_modules"]
+    return found
+
+
+def classify_scratch(sd: ScratchDir, days: int):
+    """SWEEP only when idle past the threshold and nothing inside could be the
+    last copy of real work. Gates, in order:
+
+      1. not the session running this command ($CLAUDE_CODE_SESSION_ID);
+      2. idle >= days, judged by the transcript AND the newest file inside;
+      3. no linked worktree inside -- that belongs to a real repo and the
+         worktree sweep's merge/release gates, not to a blind rmtree;
+      4. every standalone repo inside that HAS a remote is clean and has no
+         commit absent from its remotes. A repo with no remote was born in
+         the scratchpad and is scratch by construction.
+    Any git command that fails -> UNKNOWN, which is never removed."""
+    if sd.session == os.environ.get("CLAUDE_CODE_SESSION_ID"):
+        sd.verdict, sd.reason = HOLD, "current session"
+        return
+    if sd.idle_days >= days:               # only walk what the transcript calls idle
+        sd.last_active = max(sd.last_active, newest_file_mtime(sd.path))
+    if sd.idle_days < days:
+        sd.verdict, sd.reason = HOLD, f"active {sd.idle_days}d ago (< {days}d)"
+        return
+    throwaway = 0
+    for co, linked in git_checkouts(sd.path):
+        rel = co.relative_to(sd.path)
+        if linked:
+            sd.verdict, sd.reason = HOLD, f"linked worktree at {rel} — leave it to the worktree sweep"
+            return
+        gitdir = co / ".git"
+        if not (gitdir / "HEAD").exists() and not (gitdir / "config").exists():
+            # Gutted by the nightly pruner (seen: only empty ci/ hooks/ refs/
+            # dirs left). No config means no remote ever recorded here, and git
+            # no longer opens it -- nothing reachable to lose.
+            throwaway += 1
+            continue
+        # A primary whose linked worktree lives elsewhere: deleting it would
+        # orphan that worktree (its .git file would point at nothing).
+        for reg in (gitdir / "worktrees").glob("*/gitdir"):
+            try:
+                target = Path(reg.read_text().strip()).parent
+            except OSError:
+                continue
+            if target.exists() and not target.resolve().is_relative_to(sd.path.resolve()):
+                sd.verdict, sd.reason = HOLD, f"{rel} is the primary of live worktree {target}"
+                return
+        ok, remotes = git(co, "remote")
+        if not ok:
+            sd.verdict, sd.reason = UNKNOWN, f"git failed in {rel}"
+            return
+        if not remotes.strip():
+            throwaway += 1
+            continue
+        ok_s, st = git(co, "status", "--porcelain")
+        ok_u, unpushed = git(co, "rev-list", "--branches", "--tags", "--not", "--remotes")
+        if not (ok_s and ok_u):
+            sd.verdict, sd.reason = UNKNOWN, f"git failed in {rel}"
+            return
+        if st.strip():
+            sd.verdict, sd.reason = HOLD, f"uncommitted changes in {rel} (has a remote)"
+            return
+        if unpushed.strip():
+            n = len(unpushed.split())
+            sd.verdict, sd.reason = HOLD, f"{n} commit(s) in {rel} not on any remote"
+            return
+    extra = f", {throwaway} remote-less scratch repo(s)" if throwaway else ""
+    sd.verdict, sd.reason = SWEEP, f"idle {sd.idle_days}d{extra}"
+
+
+def remove_scratch(sd: ScratchDir) -> tuple[bool, str]:
+    try:
+        shutil.rmtree(sd.path)
+    except OSError as e:
+        return False, f"rmtree failed: {e.strerror or e}"
+    try:
+        sd.path.parent.rmdir()             # the slug dir, only if now empty
+    except OSError:
+        pass
+    log(f"SCRATCH-REMOVED {sd.path} idle={sd.idle_days}d size_kb={sd.size_kb}")
+    return True, "removed"
+
+
+def scratch_sweep(root: Path, days: int, apply: bool, as_json: bool) -> int:
+    dirs = list_scratch(root)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda sd: classify_scratch(sd, days), dirs))
+        sizes = list(pool.map(lambda sd: du_kb(sd.path), dirs))
+    for sd, kb in zip(dirs, sizes):
+        sd.size_kb = kb
+    if as_json:
+        print(json.dumps({"root": str(root), "days": days, "dirs": [
+            {"path": str(sd.path), "verdict": sd.verdict, "reason": sd.reason,
+             "idle_days": sd.idle_days, "size_kb": sd.size_kb} for sd in dirs]}, indent=2))
+        return 0
+    print(f"scratch root: {root}  (idle threshold {days}d)")
+    if not dirs:
+        print("No scratch session directories.")
+        return 0
+    order = {SWEEP: 0, UNKNOWN: 1, HOLD: 2}
+    dirs.sort(key=lambda sd: (order[sd.verdict], -sd.size_kb))
+    # Recently-active sessions are the bulk and need no reading: one line for all.
+    active = [sd for sd in dirs if sd.verdict == HOLD and sd.reason.startswith("active ")]
+    shown = [sd for sd in dirs if sd not in active]
+    width = max((len(sd.name) for sd in shown), default=10)
+    for sd in shown:
+        mark = {SWEEP: "SWEEP  ", HOLD: "hold   ", UNKNOWN: "UNKNOWN"}[sd.verdict]
+        print(f"{mark} {sd.name:<{width}}  {human(sd.size_kb):>6}  {sd.reason}")
+    if active:
+        print(f"hold    {len(active)} session dir(s) active within {days}d, "
+              f"{human(sum(sd.size_kb for sd in active))}")
+    sweepable = [sd for sd in dirs if sd.verdict == SWEEP]
+    total = sum(sd.size_kb for sd in sweepable)
+    print()
+    if not sweepable:
+        print("Nothing to sweep.")
+        return 0
+    if not apply:
+        print(f"{len(sweepable)} sweepable, {human(total)} — re-run with --scratch --apply to remove.")
+        return 0
+    freed = 0
+    for sd in sweepable:
+        ok, what = remove_scratch(sd)
+        print(f"  {'✓' if ok else '✗'} {sd.name}: {what}")
+        if ok:
+            freed += sd.size_kb
+    print(f"\nFreed {human(freed)}. Log: {LOG_FILE}")
+    return 0
+
+
+def scratch_nudge():
+    """Offline and stat-only: transcript + top-level mtimes, no git, no du.
+    A hint, not a verdict -- the real gates run under --scratch."""
+    me = os.environ.get("CLAUDE_CODE_SESSION_ID")
+    idle = [sd for sd in list_scratch(scratch_root())
+            if sd.session != me and sd.idle_days >= SCRATCH_DAYS]
+    if idle:
+        print(f"[worktree-sweep] {len(idle)} Claude scratch session dir(s) idle ≥{SCRATCH_DAYS}d "
+              f"— run /worktree-sweep --scratch")
+
+
+PRUNE_BRANCHES = False
+# Set by --repo: the one repo this run audited, so save_state amends rather
+# than replaces the snapshot.
+REPO_SCOPE: str | None = None
+# The caller's directory, or None when it no longer exists — typically the
+# worktree that `git worktree remove` deleted just before this sweep ran.
+START_CWD: Path | None = None
+
+
+def settle_cwd() -> Path | None:
+    """Return the working directory; move to $HOME if it was deleted.
+
+    A deleted cwd makes Path.cwd() raise and can make git refuse to start,
+    and no worktree can contain a directory that no longer exists.
+    """
+    try:
+        return Path.cwd().resolve()
+    except FileNotFoundError:
+        os.chdir(Path.home())
+        return None
+
+
+def report(repos: list[Repo], apply: bool):
+    rows = [(r, w) for r in repos for w in r.worktrees]
+    order = {SWEEP: 0, UNKNOWN: 1, HOLD: 2}
+    rows.sort(key=lambda rw: (order[rw[1].verdict], rw[1].name))
+
+    width = max((len(w.name) for _, w in rows), default=10)
+    for _, w in rows:
+        mark = {SWEEP: "SWEEP  ", HOLD: "hold   ", UNKNOWN: "UNKNOWN"}[w.verdict]
+        print(f"{mark} {w.name:<{width}}  {human(w.size_kb):>6}  {w.reason}")
+
+    sweepable = [(r, w) for r, w in rows if w.verdict == SWEEP]
+    total = sum(w.size_kb for _, w in sweepable)
+    print()
+    if not sweepable:
+        print("Nothing to sweep.")
+        report_orphan_servers(apply)
+        return 0
+    if not apply:
+        print(f"{len(sweepable)} sweepable, {human(total)} — re-run with --apply to remove "
+              f"(and stop their language servers).")
+        report_orphan_servers(apply)
+        return 0
+
+    freed = 0
+    for _, w in sweepable:
+        ok, what = remove(w, prune_branch=PRUNE_BRANCHES)
+        print(f"  {'✓' if ok else '✗'} {w.name}: {what}")
+        if ok:
+            freed += w.size_kb
+            w.verdict, w.reason, w.size_kb = HOLD, "removed by sweep", 0
+    # Re-save: the pre-apply snapshot still lists everything just removed, and
+    # --nudge reads that file. A stale cache here nags about work already done.
+    save_state(repos)
+    print(f"\nFreed {human(freed)}. Log: {LOG_FILE}")
+    report_orphan_servers(apply)
+    return 0
+
+
+# --prune-deps: regenerable dependency dirs in idle worktrees
+
+# Directories a package manager or build tool recreates from the lockfile.
+# Pruning one loses no work: `npm ci` / `pnpm install` / `cargo build` /
+# `uv sync` put it back. Matched by name at any depth below the worktree,
+# except under .git and except nested inside another match (node_modules
+# inside node_modules is counted once, with its parent).
+DEP_DIRS = {"node_modules", "target", ".venv", ".turbo", ".next", "dist", "build"}
+# `target`, `dist` and `build` are also legitimate source dir names; only
+# treat them as dependency output when the marker beside them says so.
+DEP_MARKERS = {
+    "target": ("Cargo.toml",),
+    "dist": ("package.json",),
+    "build": ("package.json",),
+}
+PRUNE_DEPS_DAYS = 3
+
+
+@dataclass
+class DepDir:
+    wt: Worktree
+    path: Path
+    kind: str
+    size_kb: int = 0
+
+
+def find_dep_dirs(wt: Worktree) -> list[DepDir]:
+    found: list[DepDir] = []
+    for dirpath, dirnames, _ in os.walk(wt.path):
+        dirnames[:] = [d for d in dirnames if d != ".git"]
+        hits = [d for d in dirnames if d in DEP_DIRS]
+        for d in hits:
+            markers = DEP_MARKERS.get(d)
+            if markers and not any((Path(dirpath) / m).exists() for m in markers):
+                continue
+            found.append(DepDir(wt, Path(dirpath) / d, d))
+        # don't descend into a matched dir: its contents belong to it
+        dirnames[:] = [d for d in dirnames if d not in hits]
+    return found
+
+
+def worktree_idle_days(wt: Worktree) -> float:
+    """Idle time from the newest *source* file, dependency dirs excluded --
+    a fresh `npm install` must not make an untouched worktree look active."""
+    newest = 0.0
+    for dirpath, dirnames, filenames in os.walk(wt.path):
+        dirnames[:] = [d for d in dirnames if d != ".git" and d not in DEP_DIRS]
+        for n in filenames:
+            try:
+                newest = max(newest, os.lstat(os.path.join(dirpath, n)).st_mtime)
+            except OSError:
+                pass
+    return (time.time() - newest) / 86400 if newest else 0.0
+
+
+def prune_deps(repos: list[Repo], days: int, apply: bool) -> int:
+    """Delete regenerable dependency dirs in worktrees idle >= days.
+    Independent of the merge/release verdict: a HOLD worktree with open work
+    keeps its source untouched; only what a lockfile recreates goes."""
+    wts = [w for r in repos for w in r.worktrees if w.path.exists()]
+    if START_CWD is not None:
+        # Skip only the worktree the caller stands IN (cwd equals it or is
+        # below it). A cwd *above* worktrees -- a directory that holds them
+        # all -- must not exclude everything.
+        wts = [w for w in wts if START_CWD != w.path and w.path not in START_CWD.parents]
+    primaries = {r.path for r in repos}
+    wts = [w for w in wts if w.path not in primaries]
+
+    rows: list[tuple[DepDir, float]] = []
+    for w in wts:
+        deps = find_dep_dirs(w)
+        if not deps:
+            continue
+        idle = worktree_idle_days(w)
+        for d in deps:
+            d.size_kb = du_kb(d.path)
+            rows.append((d, idle))
+    rows.sort(key=lambda r: -r[0].size_kb)
+
+    def short(p: Path) -> str:
+        try:
+            return "~/" + str(p.relative_to(HOME))
+        except ValueError:
+            return str(p)
+
+    width = max((len(short(d.path)) for d, _ in rows), default=10)
+    prunable: list[DepDir] = []
+    for d, idle in rows:
+        if idle >= days:
+            mark, note = "PRUNE  ", f"idle {idle:.1f}d"
+            prunable.append(d)
+        else:
+            mark, note = "keep   ", f"active {idle:.1f}d ago"
+        print(f"{mark} {short(d.path):<{width}}  {human(d.size_kb):>6}  {note}")
+
+    total = sum(d.size_kb for d in prunable)
+    print()
+    if not prunable:
+        print("Nothing to prune.")
+        return 0
+    if not apply:
+        print(f"{len(prunable)} prunable, {human(total)} — re-run with --apply to delete "
+              f"(regenerated by the package manager from the lockfile).")
+        return 0
+
+    freed = 0
+    for d in prunable:
+        try:
+            shutil.rmtree(d.path)
+        except OSError as e:
+            print(f"  ✗ {d.path}: {e}")
+            continue
+        log(f"DEPS-PRUNED {d.path} kind={d.kind} size_kb={d.size_kb} worktree={d.wt.path}")
+        print(f"  ✓ {short(d.path)}: {human(d.size_kb)}")
+        freed += d.size_kb
+    print(f"\nFreed {human(freed)}. Log: {LOG_FILE}")
+    return 0
+
+
+def main():
+    ap = argparse.ArgumentParser(description="Sweep merged-and-released git worktrees.")
+    ap.add_argument("--apply", action="store_true", help="remove SWEEP-verdict worktrees")
+    ap.add_argument("--nudge", action="store_true", help="fast offline one-liner for a SessionStart hook")
+    ap.add_argument("--prune-branches", action="store_true",
+                    help="also delete the local branch ref after removing a worktree")
+    ap.add_argument("--repo", help="limit to one repo (directory name)")
+    ap.add_argument("--json", action="store_true", help="emit machine-readable state")
+    ap.add_argument("--root", action="append", help="search root (default ~/Developer)")
+    ap.add_argument("--lookup", nargs=2, metavar=("REPO", "BRANCH"),
+                    help="debug: print the raw forge answer for one branch and exit")
+    ap.add_argument("--scratch", action="store_true",
+                    help="sweep idle Claude Code scratch session dirs instead of worktrees")
+    ap.add_argument("--scratch-days", type=int, default=SCRATCH_DAYS,
+                    help=f"idle threshold for --scratch (default {SCRATCH_DAYS})")
+    ap.add_argument("--scratch-root", type=Path,
+                    help="override the scratch root (default $CLAUDE_CODE_TMPDIR or /tmp, + /claude-<uid>)")
+    ap.add_argument("--prune-deps", action="store_true",
+                    help="delete regenerable dependency dirs (node_modules, target, .venv…) "
+                         "in worktrees idle >= --deps-days; source is never touched")
+    ap.add_argument("--deps-days", type=int, default=PRUNE_DEPS_DAYS,
+                    help=f"idle threshold for --prune-deps (default {PRUNE_DEPS_DAYS})")
+    ap.add_argument("--lsp", action="store_true",
+                    help="only list (with --apply, stop) fleet-lsp language servers whose "
+                         "checkout no longer exists; no forge lookups")
+    args = ap.parse_args()
+
+    global PRUNE_BRANCHES, START_CWD, REPO_SCOPE
+    PRUNE_BRANCHES = args.prune_branches
+    START_CWD = settle_cwd()
+
+    if args.nudge:
+        return nudge()
+
+    if args.lsp:
+        orphans = orphan_servers(language_servers())
+        if not orphans:
+            print("No language servers of deleted checkouts.")
+            return 0
+        report_orphan_servers(args.apply)
+        return 0
+
+    if not shutil.which("git"):
+        print("git not found", file=sys.stderr)
+        return 1
+
+    if args.scratch:
+        return scratch_sweep(args.scratch_root or scratch_root(),
+                             args.scratch_days, args.apply, args.json)
+
+    repos = discover(args.root or DEFAULT_ROOTS)
+    if args.lookup:
+        name, branch = args.lookup
+        repo = next((r for r in repos if r.path.name == name), None)
+        if repo is None:
+            print(f"no repo with worktrees named {name!r}", file=sys.stderr)
+            return 1
+        print(json.dumps({"forge": repo.forge, "base": repo.base,
+                          "pr": lookup_pr(repo, branch)}, indent=2))
+        return 0
+    if args.repo:
+        REPO_SCOPE = args.repo
+        repos = [r for r in repos if r.path.name == args.repo]
+
+    if args.prune_deps:
+        # No forge lookups: the verdict is irrelevant, only idleness matters.
+        return prune_deps(repos, args.deps_days, args.apply)
+
+    jobs = [(r, w) for r in repos for w in r.worktrees]
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        list(pool.map(lambda rw: classify(rw[1], rw[0]), jobs))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda rw: measure(rw[1]), jobs))
+
+    save_state(repos)
+    if args.json:
+        print(STATE_FILE.read_text())
+        return 0
+    return report(repos, args.apply)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

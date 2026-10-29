@@ -1,0 +1,39 @@
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/check.sh
+      # An explicit asset, never GitHub's generated source archive: grh pins
+      # this file's sha256, and the generated archive's bytes are not stable.
+      - name: Build the tarball
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          name="greenharness-skills-$ver"
+          mkdir -p dist
+          tar --sort=name --owner=0 --group=0 --numeric-owner \
+            --mtime='2026-01-01 00:00:00Z' -czf "dist/$name.tar.gz" \
+            --transform "s,^,$name/," parts LICENSE README.md
+          (cd dist && sha256sum ./*.tar.gz > SHA256SUMS)
+          cat dist/SHA256SUMS
+      # The same check over what actually ships, README and LICENSE included.
+      - name: Check the tarball
+        run: |
+          mkdir -p unpacked
+          tar -xzf dist/*.tar.gz -C unpacked
+          ./scripts/check.sh unpacked/*
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: dist/*.tar.gz
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --notes "Skills and agents for Green Harness, placed by grh install."
