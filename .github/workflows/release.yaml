@@ -24,6 +24,12 @@ jobs:
             --transform "s,^,$name/," parts LICENSE README.md
           (cd dist && sha256sum ./*.tar.gz > SHA256SUMS)
           cat dist/SHA256SUMS
+      # The same check over what actually ships, README and LICENSE included.
+      - name: Check the tarball
+        run: |
+          mkdir -p unpacked
+          tar -xzf dist/*.tar.gz -C unpacked
+          ./scripts/check.sh unpacked/*
       - uses: actions/attest-build-provenance@v2
         with:
           subject-path: dist/*.tar.gz

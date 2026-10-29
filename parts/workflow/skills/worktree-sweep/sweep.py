@@ -65,14 +65,14 @@ LOG_FILE = STATE_DIR / "sweep.log"
 DEFAULT_ROOTS = [HOME / "Developer"]
 
 # A self-hosted Forgejo is opt-in: set SWEEP_FORGEJO_HOST to its host name.
-# Its token is read from ~/.netrc; a client certificate, when the host asks
+# Its token is read from the netrc file; a client certificate, when the host asks
 # for one, comes from SWEEP_FORGEJO_CERT and SWEEP_FORGEJO_KEY.
 FORGEJO_HOST = os.environ.get("SWEEP_FORGEJO_HOST", "")
 _cert = os.environ.get("SWEEP_FORGEJO_CERT", "")
 _key = os.environ.get("SWEEP_FORGEJO_KEY", "")
 FORGEJO_CERT = Path(_cert).expanduser() if _cert else None
 FORGEJO_KEY = Path(_key).expanduser() if _key else None
-NETRC = HOME / ".netrc"
+NETRC = HOME / ".netrc"  # check: allow (the standard netrc file; the host is configured)
 
 # The forge is slow over this path -- a single PR lookup measured 13-17s.
 FORGE_TIMEOUT = 60
@@ -105,9 +105,7 @@ def circuit_record(forge: str, ok: bool):
         _circuit[forge] = 0 if ok else _circuit.get(forge, 0) + 1
 
 
-# --------------------------------------------------------------------------
 # process helpers
-# --------------------------------------------------------------------------
 
 
 def run(args, cwd=None, timeout=GIT_TIMEOUT):
@@ -129,9 +127,7 @@ def git(repo, *args, timeout=GIT_TIMEOUT):
     return run(["git", "-C", str(repo), *args], timeout=timeout)
 
 
-# --------------------------------------------------------------------------
 # model
-# --------------------------------------------------------------------------
 
 
 @dataclass
@@ -206,9 +202,7 @@ def stale_note(repo: Repo) -> str:
     return "" if repo.fetched else " (fetch failed -- refs may be stale)"
 
 
-# --------------------------------------------------------------------------
 # discovery
-# --------------------------------------------------------------------------
 
 
 def parse_remote(url: str):
@@ -306,9 +300,7 @@ def discover(roots, max_depth=3) -> list[Repo]:
     return repos
 
 
-# --------------------------------------------------------------------------
 # forge adapters -- every failure path returns None (=> UNKNOWN)
-# --------------------------------------------------------------------------
 
 
 def forgejo_token():
@@ -472,9 +464,7 @@ def lookup_pr(repo: Repo, branch: str):
     return None
 
 
-# --------------------------------------------------------------------------
 # classification
-# --------------------------------------------------------------------------
 
 
 # amont's push rehearsal checks the pushed tip out at
@@ -747,9 +737,7 @@ def classify(wt: Worktree, repo: Repo):
     wt.reason = f"PR #{pr.get('number')} merged, released in {wt.release}"
 
 
-# --------------------------------------------------------------------------
 # actions
-# --------------------------------------------------------------------------
 
 
 def du_kb(path: Path) -> int:
@@ -781,9 +769,7 @@ def log(msg: str):
         fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {msg}\n")
 
 
-# --------------------------------------------------------------------------
 # language servers (fleet-lsp's children)
-# --------------------------------------------------------------------------
 #
 # Claude Code's LSP tool runs `fleet-lsp serve <language>` once per session,
 # and fleet-lsp starts one server per repository or worktree it is asked
@@ -943,9 +929,7 @@ def remove(wt: Worktree, prune_branch: bool = False) -> tuple[bool, str]:
     return True, "removed"
 
 
-# --------------------------------------------------------------------------
 # reporting
-# --------------------------------------------------------------------------
 
 
 def save_state(repos: list[Repo]):
@@ -1038,9 +1022,7 @@ def nudge():
     return 0
 
 
-# --------------------------------------------------------------------------
 # Claude Code scratch session directories
-# --------------------------------------------------------------------------
 #
 # Claude Code keeps per-session temp state at
 #   <tmp root>/<project slug>/<session id>/{scratchpad,tasks}
@@ -1336,9 +1318,7 @@ def report(repos: list[Repo], apply: bool):
     return 0
 
 
-# --------------------------------------------------------------------------
 # --prune-deps: regenerable dependency dirs in idle worktrees
-# --------------------------------------------------------------------------
 
 # Directories a package manager or build tool recreates from the lockfile.
 # Pruning one loses no work: `npm ci` / `pnpm install` / `cargo build` /

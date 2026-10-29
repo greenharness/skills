@@ -36,7 +36,7 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    Never `git tag … && git push …` in one command: the amont-agent push
    guards judge the whole command before any of it runs, so the tag does
    not exist yet, the push "cannot be read", and under deny it is held
-   (2026-10-08, duro v5.5.0). A push of an existing tag needs no preview
+   A push of an existing tag needs no preview
    and no implementation review — never hand it to the person.
    Push from a clean task worktree whose builds are current (the pre-push
    gate tests the working tree), not from the live checkout.

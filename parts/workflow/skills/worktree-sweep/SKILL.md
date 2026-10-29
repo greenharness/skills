@@ -35,8 +35,8 @@ deliberate: every gate below must pass first, and a swept worktree is one
 `~/.claude/worktree-sweep/sweep.log`.
 
 The **local branch ref is kept** unless you pass `--prune-branches`. GitHub deletes
-the remote branch on merge (verified: `amont` `fix/trust-per-worktree` 404s after
-merge) while Forgejo keeps it (`default_delete_branch_after_merge: false`), so on
+the remote branch on merge, while Forgejo keeps it by default
+(`default_delete_branch_after_merge: false`), so on
 GitHub repos the local ref can be the last *named* handle on the pre-squash commits.
 They stay reachable either way — in the object store and permanently as
 `refs/pull/<n>/head` — but a branch ref is free and a 1 GB worktree is not.
@@ -57,8 +57,7 @@ A worktree, detached or on a branch, earns SWEEP by content alone when:
 
 No forge call, no release gate: nothing in the worktree is unmerged. A
 branch that fails the content gate goes on to the PR gates below; a detached
-HEAD that fails it is held ("not on origin/<base>"). Before this gate, ten
-such worktrees (2.9 GB) were held only for being detached.
+HEAD that fails it is held ("not on origin/<base>").
 
 ## PR gates — for work that is not on base yet; all must pass
 
@@ -109,7 +108,7 @@ data loss. Never "optimise" an UNKNOWN into a HOLD-equivalent that proceeds.
   equalling the worktree HEAD; otherwise it holds as "never pushed".
 - `--lookup <repo> <branch>` prints the raw forge answer for one branch — use
   it to interrogate a verdict you don't believe.
-- `default_delete_branch_after_merge` is **false** on the Forgejo repos, so a
+- `default_delete_branch_after_merge` is **false** by default on Forgejo, so a
   surviving remote branch says nothing about merge state.
 - Both forges squash-merge, so `git merge-base --is-ancestor HEAD origin/main`
   is useless here — a merged branch's commits never appear on `main`. The PR API
