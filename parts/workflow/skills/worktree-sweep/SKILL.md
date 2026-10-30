@@ -14,20 +14,42 @@ python3 ~/.claude/skills/worktree-sweep/sweep.py            # audit, change noth
 python3 ~/.claude/skills/worktree-sweep/sweep.py --apply    # audit, then remove SWEEP-verdict worktrees
 python3 ~/.claude/skills/worktree-sweep/sweep.py --repo my-app --apply
 python3 ~/.claude/skills/worktree-sweep/sweep.py --json     # machine-readable
-python3 ~/.claude/skills/worktree-sweep/sweep.py --lsp --apply  # only stop language servers of deleted checkouts
+python3 ~/.claude/skills/worktree-sweep/sweep.py --procs --apply  # only stop what still runs from deleted checkouts
 ```
 
-**Language servers go with their checkout.** fleet-lsp starts one server per
-worktree it is asked about (rust-analyzer, gopls, pyright, the TypeScript
-server under node), and nothing stopped them when the worktree went away: on
-2026-10-29, twelve rust-analyzers of deleted worktrees had swap at 20 of
-21.5 GB. Now a removal stops the servers rooted in that worktree, and every
-run lists — with `--apply`, stops — the servers whose working directory no
-longer exists (`ORPHAN-LSP` lines; `LSP-STOPPED` in the log). Only direct
-children of a `fleet-lsp` process are touched, never an editor's own; a
-stopped server comes back if that checkout is asked about again. `--lsp` does
-only this, without forge lookups, for right after a `git worktree remove` by
-hand.
+**What still runs goes with its checkout.** Nothing stops a process when its
+worktree goes away: language servers (fleet-lsp starts one per worktree it is
+asked about), test browsers, dev servers and shells all outlive it, and enough
+of them exhaust memory. A removal now stops what runs in the worktree it
+removes, and every run prints `ORPHAN-PROC <kind> pid <pid> <comm> <cwd>` for
+what runs from a deleted worktree this sweep owns (`PROC-STOPPED` in the log,
+with `--apply`). Kinds: `lsp` (a direct child of `fleet-lsp`), `browser` (a
+Chrome or Chromium started with an automation flag), `mcp` (a
+`chrome-devtools-mcp` server) and `process` (anything else). Orphaned
+`chrome-devtools-mcp` servers (the session that started them is gone and
+nothing but the init process holds them) are listed and stopped too, from
+their npm wrapper.
+
+Never touched: the sweep itself and everything above it, a live Claude session
+and everything above it, and the MCP servers of a live session with their
+wrapper and Chrome. A test runner under a session is not protected, and
+neither is `fleet-lsp`.
+
+A worktree is *owned*, and so its leftovers may be stopped, when git still
+registers it, when the sweep removed it (recorded in `removed.jsonl` beside
+`state.json`, kept 14 days), or when it is a sibling `<repo>-wt-*` of a scanned
+repository. A deleted subdirectory inside a checkout that exists is never an
+orphan. A process whose directory is gone but whose ownership is unknown is
+printed as `ORPHAN-UNOWNED pid <pid> <comm> <cwd>` and left running.
+
+Right before each removal the sweep looks again: if a Claude session has its
+working directory inside the worktree the verdict becomes HOLD (`a live
+session works here`), and a removal whose check cannot be evaluated is
+refused. A stopped test browser's throwaway profile (`playwright_*` or
+`puppeteer_*` directly under the temporary directory) is deleted once the
+process is gone (`PROFILE-REMOVED` in the log). A stopped process comes back
+if its tool is asked again. `--procs` does only this, without forge lookups,
+for right after a `git worktree remove` by hand; `--lsp` is an alias.
 
 Removals are automatic under `--apply` — no per-worktree confirmation. That is
 deliberate: every gate below must pass first, and a swept worktree is one

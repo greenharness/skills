@@ -7,10 +7,16 @@ permissions:
   contents: read
 jobs:
   check:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - name: No machine-specific content, every forked skill keeps its notice
         run: ./scripts/check.sh
       - name: sweep.py compiles
         run: python3 -m py_compile parts/workflow/skills/worktree-sweep/sweep.py
+      - name: tests
+        run: python3 -m unittest discover -s tests -v

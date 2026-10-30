@@ -51,6 +51,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import urllib.parse
@@ -108,7 +109,7 @@ def circuit_record(forge: str, ok: bool):
 # process helpers
 
 
-def run(args, cwd=None, timeout=GIT_TIMEOUT):
+def run(args, cwd=None, timeout=GIT_TIMEOUT, env=None):
     """Run a command. Returns (ok, stdout). ok is False on ANY failure path."""
     try:
         p = subprocess.run(
@@ -117,6 +118,7 @@ def run(args, cwd=None, timeout=GIT_TIMEOUT):
             capture_output=True,
             text=True,
             timeout=timeout,
+            env=env,
         )
     except (subprocess.TimeoutExpired, OSError):
         return False, ""
@@ -250,9 +252,11 @@ def find_primaries(roots, max_depth=3) -> set[Path]:
     return primaries
 
 
-def discover(roots, max_depth=3) -> list[Repo]:
+def discover(roots, max_depth=3, keep_empty=False) -> list[Repo]:
     """Find primary checkouts and their linked worktrees -- wherever those live
-    (/tmp, $TMPDIR, a scratchpad): `git worktree list` knows them all."""
+    (/tmp, $TMPDIR, a scratchpad): `git worktree list` knows them all. A
+    checkout with no linked worktree is kept only with keep_empty: process
+    ownership still needs it for its `<repo>-wt-*` siblings."""
     repos: list[Repo] = []
     for primary in sorted(find_primaries(roots, max_depth)):
         ok, out = git(primary, "worktree", "list", "--porcelain")
@@ -295,7 +299,7 @@ def discover(roots, max_depth=3) -> list[Repo]:
                     prunable="prunable" in e,
                 )
             )
-        if repo.worktrees:
+        if repo.worktrees or keep_empty:
             repos.append(repo)
     return repos
 
@@ -609,6 +613,13 @@ def local_gates(wt: Worktree, repo: Repo) -> bool:
         wt.verdict, wt.reason = HOLD, f"checked out on {wt.branch}"
         return False
 
+    # The first snapshot already shows a live session, so a dry run says HOLD;
+    # remove() looks again right before the removal.
+    table, why = session_verdict(audit_snapshot(), wt.path)
+    if table is None:
+        wt.verdict, wt.reason = (HOLD if why.startswith("a live") else UNKNOWN), why
+        return False
+
     # Two lists rather than `status --porcelain`: run() strips stdout, which
     # eats the leading space of a ` M path` first line and shifts its path.
     ok, tracked = git(wt.path, "diff", "--name-only", "HEAD")
@@ -769,95 +780,232 @@ def log(msg: str):
         fh.write(f"{time.strftime('%Y-%m-%dT%H:%M:%S%z')} {msg}\n")
 
 
-# language servers (fleet-lsp's children)
+# processes rooted in a worktree
 #
-# Claude Code's LSP tool runs `fleet-lsp serve <language>` once per session,
-# and fleet-lsp starts one server per repository or worktree it is asked
-# about (rust-analyzer, gopls, pyright, typescript-language-server), with
-# that checkout as its working directory. Nothing stops a server when its
-# checkout goes away: on 2026-10-29 twelve rust-analyzers of deleted
-# worktrees held enough memory that swap was 20 of 21.5 GB. So a removal
-# also stops the servers rooted in what it removed, and every sweep stops
-# servers whose working directory no longer exists. Only direct children of
-# a `fleet-lsp` process are touched: an editor's own servers are not ours.
+# Nothing stops a process when its checkout goes away. Claude Code's LSP tool
+# runs `fleet-lsp serve <language>`, which starts one server per worktree it is
+# asked about (rust-analyzer, gopls, pyright, the TypeScript server): on
+# 2026-10-29 twelve rust-analyzers of deleted worktrees held enough memory that
+# swap was 20 of 21.5 GB. Test browsers, dev servers and shells started from a
+# worktree outlive it the same way, and so do chrome-devtools-mcp servers whose
+# session ended. So a removal stops what runs in the worktree it removes, and
+# every run lists -- with --apply, stops -- what runs from a deleted worktree
+# this sweep owns. A live Claude session, its MCP tools, and anything above the
+# sweep are never touched.
 
+# How long a SIGTERMed tree gets to exit before SIGKILL.
+GRACE_SECONDS = 3
+# removed.jsonl: worktrees this tool removed, kept beside state.json so a
+# process left in one is still known to be ours after git forgot the worktree.
+REMOVED_FILE = STATE_DIR / "removed.jsonl"
+REMOVED_DAYS = 14
 LSP_PARENT = "fleet-lsp"
-# How long a SIGTERMed server gets to exit before SIGKILL.
-LSP_GRACE_SECONDS = 3.0
+BROWSER_NAMES = {"chrome-headless-shell", "chrome", "Chromium", "Google Chrome",
+                 "Google Chrome for Testing"}
+BROWSER_FLAGS = ("--remote-debugging-pipe", "--remote-debugging-port", "--headless")
+MCP_NAME = "chrome-devtools-mcp"
+MCP_WRAPPERS = {"node", "npm", "npx"}
+REAPERS = {"launchd", "systemd"}
+PROFILE_PREFIXES = ("playwright_", "puppeteer_")
+LSTART_FORMAT = "%a %b %d %H:%M:%S %Y"
+
+
+def c_locale_env() -> dict:
+    """The environment with LC_ALL=C (never a bare dict, which drops PATH):
+    ps prints lstart in the locale's language otherwise."""
+    return {**os.environ, "LC_ALL": "C"}
 
 
 @dataclass
-class LangServer:
+class Proc:
     pid: int
-    command: str
-    cwd: Path | None
+    ppid: int
+    start: str
+    comm: str
+    args: str
+    cwd: Path | None = None
 
 
-def _process_table() -> list[tuple[int, int, str]]:
-    ok, out = run(["ps", "-Ao", "pid=,ppid=,comm="], timeout=30)
-    rows = []
-    if not ok:
-        return rows
-    for line in out.splitlines():
+def argv0(proc: Proc) -> str:
+    """argv[0]. macOS reports comm as the full path, spaces included, and args
+    starts with it; Linux truncates comm to 15 bytes, so args is read instead."""
+    args, comm = proc.args or proc.comm, proc.comm
+    if comm and args.startswith(comm) and (len(args) == len(comm) or args[len(comm)] in " \t"):
+        return comm
+    first = args.split(None, 1)
+    return first[0] if first else comm
+
+
+def pname(proc: Proc) -> str:
+    """The basename of argv[0]."""
+    return os.path.basename(argv0(proc))
+
+
+def _parse_start_comm(rest: str):
+    """'<24-char lstart><comm>' -> (start, comm), or None when lstart is not a
+    date (a row shifted by an odd comm is dropped, never guessed at)."""
+    rest = rest.lstrip()
+    start, comm = rest[:24], rest[24:].strip()
+    try:
+        time.strptime(start, LSTART_FORMAT)
+    except ValueError:
+        return None
+    return start, comm
+
+
+def parse_ps(table_out: str, args_out: str) -> dict[int, Proc]:
+    """`ps -Ao pid=,ppid=,lstart=,comm=` joined by pid with `ps -Aww -o pid=,args=`."""
+    args_by_pid: dict[int, str] = {}
+    for line in args_out.splitlines():
+        parts = line.split(None, 1)
+        if parts and parts[0].isdigit():
+            args_by_pid[int(parts[0])] = parts[1].strip() if len(parts) > 1 else ""
+    table: dict[int, Proc] = {}
+    for line in table_out.splitlines():
         parts = line.split(None, 2)
-        if len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit():
-            rows.append((int(parts[0]), int(parts[1]), parts[2].strip()))
-    return rows
+        if len(parts) < 3 or not parts[0].isdigit() or not parts[1].isdigit():
+            continue
+        parsed = _parse_start_comm(parts[2])
+        if parsed is None:
+            continue
+        pid = int(parts[0])
+        table[pid] = Proc(pid, int(parts[1]), parsed[0], parsed[1], args_by_pid.get(pid) or parsed[1])
+    return table
 
 
-def language_servers() -> list[LangServer]:
-    """fleet-lsp's servers, each with its working directory (None when it
-    could not be read)."""
-    table = _process_table()
-    parents = {pid for pid, _, comm in table if Path(comm).name == LSP_PARENT}
-    servers = [(pid, Path(comm).name) for pid, ppid, comm in table if ppid in parents]
-    if not servers:
-        return []
+def parse_lsof(out: str) -> dict[int, Path]:
     cwds: dict[int, Path] = {}
-    ok, out = run(["lsof", "-a", "-d", "cwd", "-Fpn", "-p", ",".join(str(p) for p, _ in servers)],
-                  timeout=30)
     current = None
-    for line in out.splitlines() if out else []:
+    for line in out.splitlines():
         if line.startswith("p") and line[1:].isdigit():
             current = int(line[1:])
         elif line.startswith("n") and current is not None:
-            cwds[current] = Path(line[1:])
-    return [LangServer(pid, command, cwds.get(pid)) for pid, command in servers]
+            name = line[1:]
+            if name.endswith(" (deleted)"):       # Linux marks a removed cwd
+                name = name[:-len(" (deleted)")]
+            cwds[current] = Path(name)
+    return cwds
 
 
-def _descendants(pid: int, table: list[tuple[int, int, str]]) -> list[int]:
-    out, frontier = [], [pid]
+def read_procs() -> dict[int, Proc] | None:
+    """The process table with each working directory, or None when it cannot
+    be read (callers that gate a removal then refuse)."""
+    env = c_locale_env()
+    ok, table_out = run(["ps", "-Ao", "pid=,ppid=,lstart=,comm="], timeout=30, env=env)
+    args_ok, args_out = run(["ps", "-Aww", "-o", "pid=,args="], timeout=30, env=env)
+    if not (ok and args_ok):
+        return None
+    table = parse_ps(table_out, args_out)
+    if not table:
+        return None
+    _, lsof_out = run(["lsof", "-a", "-d", "cwd", "-Fpn"], timeout=60)  # exits 1 on partial output
+    if not lsof_out:
+        return None
+    for pid, cwd in parse_lsof(lsof_out).items():
+        if pid in table:
+            table[pid].cwd = cwd
+    return table
+
+
+def reread(pid: int):
+    """(start, comm) of one pid right now, or None when it is gone."""
+    ok, out = run(["ps", "-o", "lstart=,comm=", "-p", str(pid)], timeout=30, env=c_locale_env())
+    return _parse_start_comm(out) if ok and out else None
+
+
+def _table(procs) -> dict[int, Proc]:
+    return procs if isinstance(procs, dict) else {proc.pid: proc for proc in procs}
+
+
+def _children(table: dict[int, Proc]) -> dict[int, list[int]]:
+    kids: dict[int, list[int]] = {}
+    for proc in table.values():
+        kids.setdefault(proc.ppid, []).append(proc.pid)
+    return kids
+
+
+def _ancestors(pid: int, table: dict[int, Proc]) -> list[int]:
+    out, seen = [], {pid}
+    cur = table.get(pid)
+    while cur is not None and cur.ppid not in seen and cur.ppid in table:
+        out.append(cur.ppid)
+        seen.add(cur.ppid)
+        cur = table[cur.ppid]
+    return out
+
+
+def _descendants(pid: int, table: dict[int, Proc]) -> list[int]:
+    kids = _children(table)
+    out, frontier, seen = [], [pid], {pid}
     while frontier:
-        nxt = [child for child, ppid, _ in table if ppid in frontier]
+        nxt = [child for node in frontier for child in kids.get(node, []) if child not in seen]
+        seen.update(nxt)
         out.extend(nxt)
         frontier = nxt
     return out
 
 
-def stop_server(server: LangServer, why: str) -> bool:
-    """SIGTERM the server and what it started (tsserver runs under node), then
-    SIGKILL whatever is still there after LSP_GRACE_SECONDS. fleet-lsp starts
-    a fresh one if that checkout is ever asked about again."""
-    import signal
-    tree = [server.pid] + _descendants(server.pid, _process_table())
-    for pid in tree:
-        try:
-            os.kill(pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        except PermissionError:
-            return False
-    deadline = time.time() + LSP_GRACE_SECONDS
-    while time.time() < deadline and any(pid_alive(p) for p in tree):
-        time.sleep(0.1)
-    for pid in tree:
-        if pid_alive(pid):
-            try:
-                os.kill(pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-    log(f"LSP-STOPPED pid={server.pid} {server.command} cwd={server.cwd} ({why})")
-    return True
+def _is_browser(proc: Proc) -> bool:
+    return pname(proc) in BROWSER_NAMES and any(flag in proc.args for flag in BROWSER_FLAGS)
+
+
+def _is_mcp_wrapper(proc: Proc) -> bool:
+    return MCP_NAME in proc.args and pname(proc) in MCP_WRAPPERS
+
+
+def classify_proc(proc: Proc, table) -> str:
+    """lsp | browser | mcp | process. Pure."""
+    table = _table(table)
+    parent = table.get(proc.ppid)
+    if parent is not None and pname(parent) == LSP_PARENT:
+        return "lsp"
+    if _is_browser(proc):
+        return "browser"
+    if MCP_NAME in proc.args:
+        return "mcp"
+    return "process"
+
+
+def _wrapper_top(proc: Proc, table: dict[int, Proc]) -> Proc:
+    cur, seen = proc, {proc.pid}
+    while True:
+        parent = table.get(cur.ppid)
+        if parent is None or parent.pid in seen or not _is_mcp_wrapper(parent):
+            return cur
+        seen.add(parent.pid)
+        cur = parent
+
+
+def protected(procs, self_pid: int) -> set[int]:
+    """What a sweep never signals: itself and everything above it, every claude
+    and everything above it, and the chrome-devtools-mcp servers of a live
+    claude with their npm wrapper and Chrome. fleet-lsp and its children are
+    not protected, nor is a test runner under claude."""
+    table = _table(procs)
+    out = {self_pid, *_ancestors(self_pid, table)}
+    claudes = {proc.pid for proc in table.values() if pname(proc) == "claude"}
+    for pid in claudes:
+        out.add(pid)
+        out.update(_ancestors(pid, table))
+    for proc in table.values():
+        if _is_mcp_wrapper(proc) and claudes.intersection(_ancestors(proc.pid, table)):
+            top = _wrapper_top(proc, table)
+            out.add(top.pid)
+            out.update(_descendants(top.pid, table))
+    return out
+
+
+# removed.jsonl
+
+def _real(path) -> Path:
+    return Path(os.path.realpath(str(path)))
+
+
+def _exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except OSError:
+        return True                        # unknown is treated as present
 
 
 def _within(path: Path, root: Path) -> bool:
@@ -868,34 +1016,381 @@ def _within(path: Path, root: Path) -> bool:
         return False
 
 
-def orphan_servers(servers: list[LangServer]) -> list[LangServer]:
-    """Servers whose working directory no longer exists."""
-    return [s for s in servers if s.cwd is not None and not s.cwd.exists()]
+def record_removed(wt: "Worktree") -> bool:
+    """One append-only line per removal, written BEFORE git forgets the
+    worktree. A single O_APPEND write, so concurrent sweeps cannot interleave.
+    Returns whether the line was written."""
+    line = json.dumps({"path": str(wt.path), "primary": str(wt.primary), "time": time.time()}) + "\n"
+    try:
+        REMOVED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        descriptor = os.open(REMOVED_FILE, os.O_WRONLY | os.O_APPEND | os.O_CREAT, 0o600)
+        try:
+            os.write(descriptor, line.encode())
+        finally:
+            os.close(descriptor)
+    except OSError:
+        return False
+    return True
 
 
-def report_orphan_servers(apply: bool):
-    orphans = orphan_servers(language_servers())
-    if not orphans:
-        return
+def read_removed(now: float | None = None) -> dict[Path, Path | None]:
+    """Recent removed worktrees, each with the primary it was recorded under
+    (None for an older line that has no primary)."""
+    now = time.time() if now is None else now
+    out: dict[Path, Path | None] = {}
+    try:
+        text = REMOVED_FILE.read_text()
+    except OSError:
+        return out
+    for line in text.splitlines():
+        try:
+            rec = json.loads(line)
+            path, ts = rec["path"], float(rec["time"])
+        except (ValueError, KeyError, TypeError):
+            continue
+        if isinstance(path, str) and path and now - ts <= REMOVED_DAYS * 86400:
+            primary = rec.get("primary") if isinstance(rec, dict) else None
+            key = _real(path)
+            if isinstance(primary, str) and primary:
+                out[key] = _real(primary)
+            else:
+                out.setdefault(key, None)
+    return out
+
+
+@dataclass
+class Owners:
+    """Which paths this sweep may call its own: worktrees git registers, ones
+    it removed (removed.jsonl), and `<repo>-wt-*` siblings of a scanned repo."""
+    roots: set[Path] = field(default_factory=set)
+    primaries: set[Path] = field(default_factory=set)
+
+    def root_of(self, cwd: Path) -> Path | None:
+        """The deepest owned root (or primary checkout) containing cwd."""
+        found = [root for root in (*self.roots, *self.primaries) if _within_real(cwd, root)]
+        for prim in self.primaries:
+            if _within_real(cwd, prim.parent) and cwd != prim.parent:
+                top = cwd.relative_to(prim.parent).parts[0]
+                if top.startswith(f"{prim.name}-wt-"):
+                    found.append(prim.parent / top)
+        return max(found, key=lambda root: len(root.parts)) if found else None
+
+
+def _within_real(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _owners(repos: list["Repo"], removed: dict[Path, Path | None]) -> Owners:
+    primaries = {_real(repo.path) for repo in repos}
+    roots = {_real(worktree.path) for repo in repos for worktree in repo.worktrees} | set(removed)
+    return Owners(roots, primaries)
+
+
+def collect_owners(repos: list["Repo"]) -> Owners:
+    """Owners of the given repos, and every removed.jsonl entry."""
+    return _owners(repos, read_removed())
+
+
+def collect_scoped_owners(repos: list["Repo"]) -> Owners:
+    """Owners of the given repos only: a removed.jsonl entry counts when its
+    recorded primary is one of them, so an entry with no primary belongs to
+    none of them."""
+    primaries = {_real(repo.path) for repo in repos}
+    removed = {path: prim for path, prim in read_removed().items() if prim in primaries}
+    return _owners(repos, removed)
+
+
+# selections (pure)
+
+def _top_level(cands: list[Proc], table: dict[int, Proc]) -> list[Proc]:
+    pids = {proc.pid for proc in cands}
+    return [proc for proc in cands if not pids.intersection(_ancestors(proc.pid, table))]
+
+
+def rooted(procs, root: Path, prot: set[int] | None = None) -> list[Proc]:
+    """Top-level unprotected processes whose cwd is inside root."""
+    table = _table(procs)
+    prot = protected(table, os.getpid()) if prot is None else prot
+    cands = [proc for proc in table.values()
+             if proc.pid not in prot and proc.cwd is not None and _within(proc.cwd, root)]
+    return _top_level(cands, table)
+
+
+def _gone(procs, owners: Owners, prot: set[int] | None):
+    """(table, [(proc, owning root or None)]) for unprotected processes whose
+    cwd is gone and is not a missing subdirectory of a checkout that exists."""
+    table = _table(procs)
+    prot = protected(table, os.getpid()) if prot is None else prot
+    out = []
+    for proc in table.values():
+        if proc.pid in prot or proc.cwd is None:
+            continue
+        cwd = _real(proc.cwd)
+        if _exists(cwd):
+            continue
+        root = owners.root_of(cwd)
+        if root is not None and _exists(root):
+            continue                       # a deleted build/ in a live checkout
+        out.append((proc, root))
+    return table, out
+
+
+def orphans(procs, owners: Owners, prot: set[int] | None = None) -> list[Proc]:
+    """Top-level unprotected processes inside an owned worktree that is gone."""
+    table, gone = _gone(procs, owners, prot)
+    return _top_level([proc for proc, root in gone if root is not None], table)
+
+
+def unowned_orphans(procs, owners: Owners, prot: set[int] | None = None) -> list[Proc]:
+    """Gone cwd of unknown ownership: reported, never stopped."""
+    table, gone = _gone(procs, owners, prot)
+    return _top_level([proc for proc, root in gone if root is None], table)
+
+
+def orphan_mcp(procs, table=None, prot: set[int] | None = None) -> list[Proc]:
+    """chrome-devtools-mcp servers whose session is gone: the chain above them,
+    walked only through wrappers naming the server, ends at the reaper. Each is
+    returned as its highest wrapper, never the reaper. A parent that is some
+    other live program (claude, an editor) leaves the server alone."""
+    table = _table(table if table is not None else procs)
+    prot = set() if prot is None else prot
+    out: dict[int, Proc] = {}
+    for proc in _table(procs).values():
+        if MCP_NAME not in proc.args or proc.pid in prot:
+            continue
+        top = _wrapper_top(proc, table)
+        parent = table.get(top.ppid)
+        if top.pid in prot or parent is None:
+            continue
+        if parent.pid == 1 or top.ppid == 1 or pname(parent) in REAPERS:
+            out[top.pid] = top
+    return _top_level(list(out.values()), table)
+
+
+# stopping
+
+def profile_dir(proc: Proc, tmpdir: Path) -> Path | None:
+    """The throwaway profile of a test browser (--user-data-dir): a real
+    directory, not a symlink, named playwright_* or puppeteer_*, directly under
+    the resolved $TMPDIR. Anything else is not ours to delete."""
+    if not _is_browser(proc):
+        return None
+    match = re.search(r"--user-data-dir(?:=|\s+)(\S+)", proc.args)
+    if not match:
+        return None
+    raw = Path(match.group(1))
+    try:
+        if raw.is_symlink() or not raw.is_dir():
+            return None
+        real, tmp = raw.resolve(), Path(tmpdir).resolve()
+    except OSError:
+        return None
+    if real.parent != tmp or not real.name.startswith(PROFILE_PREFIXES):
+        return None
+    return real
+
+
+def _tmpdir() -> Path:
+    return Path(os.environ.get("TMPDIR") or tempfile.gettempdir())
+
+
+KILL_WAIT_SECONDS = 1.0
+
+
+def stop_tree(top: Proc, kind: str, why: str) -> bool:
+    """SIGTERM the process and what it started, then SIGKILL what is still
+    there after GRACE_SECONDS. Each pid is re-read just before it is signalled:
+    one whose comm or start time changed (a reused pid) or that is protected
+    is skipped. fleet-lsp starts a fresh server if the checkout is asked about
+    again."""
+    import signal
+
+    def not_stopped(why_not: str) -> bool:
+        log(f"PROC-NOT-STOPPED pid={top.pid} comm={os.path.basename(top.comm)} ({why_not})")
+        return False
+
+    fresh = read_procs()
+    if fresh is None:
+        return not_stopped("could not read the process table")
+    prot = protected(fresh, os.getpid())
+    members = [top]
+    members += [fresh[pid] for pid in _descendants(top.pid, fresh) if pid in fresh]
+
+    def unchanged(proc: Proc) -> bool:
+        now = reread(proc.pid)
+        return now is not None and now == (proc.start, proc.comm)
+
+    if top.pid in prot:
+        return not_stopped("protected")
+    if not unchanged(top):
+        return not_stopped("pid gone or reused")
+    live = [proc for proc in members if proc.pid not in prot and unchanged(proc)]
+    profiles = [profile for proc in live if (profile := profile_dir(proc, _tmpdir())) is not None]
+    for proc in live:
+        try:
+            os.kill(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except PermissionError:
+            return not_stopped(f"permission denied signalling pid {proc.pid}")
+    deadline = time.time() + GRACE_SECONDS
+    while time.time() < deadline and any(pid_alive(proc.pid) for proc in live):
+        time.sleep(0.1)
+    for proc in live:
+        if pid_alive(proc.pid) and unchanged(proc):
+            try:
+                os.kill(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+    deadline = time.time() + KILL_WAIT_SECONDS
+    while time.time() < deadline and any(pid_alive(proc.pid) for proc in live):
+        time.sleep(0.05)
+    cwd = top.cwd
+    if any(pid_alive(proc.pid) for proc in live):
+        for profile in dict.fromkeys(profiles):
+            log(f"PROFILE-KEPT {profile}: still running")
+        return not_stopped("still alive after SIGKILL")
+    log(f"PROC-STOPPED kind={kind} pid={top.pid} comm={os.path.basename(top.comm)} cwd={cwd} ({why})")
+    for profile in dict.fromkeys(profiles):
+        try:
+            shutil.rmtree(profile)
+            log(f"PROFILE-REMOVED {profile}")
+        except OSError as error:
+            log(f"PROFILE-KEPT {profile}: {error}")
+    return True
+
+
+_SNAPSHOT: list | None = None          # [table] once an audit has begun
+_SNAPSHOT_LOCK = threading.Lock()
+
+
+def begin_audit():
+    """Share one process-table read among the audit's gates."""
+    global _SNAPSHOT
+    with _SNAPSHOT_LOCK:
+        _SNAPSHOT = []
+
+
+def audit_snapshot():
+    """The table for the gates: read once per audit after begin_audit(), else
+    read each time. The removal re-reads its own."""
+    with _SNAPSHOT_LOCK:
+        if _SNAPSHOT is None:
+            return read_procs()
+        if not _SNAPSHOT:
+            _SNAPSHOT.append(read_procs())
+        return _SNAPSHOT[0]
+
+
+def session_gate(path: Path):
+    """The gate `a live session works here`, run on a fresh table right before
+    a removal. Returns (table, "") when clear, else (None, reason): HOLD when a
+    claude process sits in path, and a refusal when that cannot be evaluated."""
+    return session_verdict(read_procs(), path)
+
+
+def session_verdict(table, path: Path):
+    """session_gate evaluated against a given table."""
+    if table is None:
+        return None, "could not evaluate whether a live session works here"
+    for proc in table.values():
+        if pname(proc) != "claude":
+            continue
+        if proc.cwd is None:
+            return None, "could not evaluate whether a live session works here"
+        if _within(proc.cwd, path):
+            return None, "a live session works here"
+    return table, ""
+
+
+def in_scope(repos: list["Repo"], name: str | None) -> list["Repo"]:
+    """The repositories --repo selects (all of them without it)."""
+    return [r for r in repos if r.path.name == name] if name else repos
+
+
+def report_procs(apply: bool, repos: list["Repo"], name: str | None = None) -> int:
+    """Print and (with apply) stop processes of deleted checkouts. Ownership is
+    computed over every repo given; name keeps only orphans owned by that repo,
+    and an orphan owned by an out-of-scope repo is neither printed nor counted.
+    Returns how many it reported, or -1 when the process table cannot be read."""
+    table = read_procs()
+    if table is None:
+        print("[worktree-sweep] could not read the process table; skipping processes.",
+              file=sys.stderr)
+        return -1
+    prot = protected(table, os.getpid())
+    owners = collect_owners(repos)
+    scoped = collect_scoped_owners(in_scope(repos, name)) if name else owners
+
+    def in_scope_proc(proc: Proc) -> bool:
+        return proc.cwd is not None and scoped.root_of(_real(proc.cwd)) is not None
+    found = {proc.pid: (proc, "checkout gone")
+             for proc in orphans(table, owners, prot) if in_scope_proc(proc)}
+    for proc in orphan_mcp(table, table, prot):
+        found.setdefault(proc.pid, (proc, "orphaned chrome-devtools-mcp"))
+    keep = {proc.pid for proc in _top_level([proc for proc, _ in found.values()], table)}
+    found = {pid: entry for pid, entry in found.items() if pid in keep}
+    unowned = unowned_orphans(table, owners, prot)
+    if not found and not unowned:
+        return 0
     print()
-    for s in orphans:
-        print(f"ORPHAN-LSP pid {s.pid:<7} {s.command:<26} {s.cwd}")
+    for proc, _ in found.values():
+        print(f"ORPHAN-PROC {classify_proc(proc, table)} pid {proc.pid} {os.path.basename(proc.comm)} {proc.cwd}")
+    for proc in unowned:
+        print(f"ORPHAN-UNOWNED pid {proc.pid} {os.path.basename(proc.comm)} {proc.cwd}")
+    if not found:
+        return len(unowned)
     if not apply:
-        print(f"{len(orphans)} language server(s) of deleted checkouts — re-run with --apply to stop them.")
-        return
-    stopped = sum(stop_server(s, "checkout gone") for s in orphans)
-    print(f"Stopped {stopped} language server(s) of deleted checkouts.")
+        print(f"{len(found)} process(es) of deleted checkouts — re-run with --apply to stop them.")
+        return len(found) + len(unowned)
+    stopped = sum(stop_tree(proc, classify_proc(proc, table), why) for proc, why in found.values())
+    print(f"Stopped {stopped} process(es) of deleted checkouts.")
+    return len(found) + len(unowned)
+
+
+def refuse_unrecorded(wt: Worktree) -> tuple[bool, str]:
+    """Without the removed.jsonl line, a process left in the worktree could
+    never be told apart from a stranger's after git forgets it: refuse."""
+    reason = "could not record the removal in removed.jsonl"
+    print(f"[worktree-sweep] {wt.path}: {reason}; not removed.", file=sys.stderr)
+    try:
+        log(f"REMOVAL-REFUSED {wt.path}: {reason}")
+    except OSError:
+        pass  # stderr already has it; the log shares the disk that just failed
+    return False, reason
 
 
 def remove(wt: Worktree, prune_branch: bool = False) -> tuple[bool, str]:
     """Remove a SWEEP worktree. Never --force: an unexpected untracked file
     must abort the removal, not be bulldozed."""
     if wt.prunable or not wt.path.exists():
+        # Owned processes are stopped BEFORE the prune: once git forgets the
+        # registration, only removed.jsonl still says the path was ours.
+        if not record_removed(wt):
+            return refuse_unrecorded(wt)
+        # git can mark a worktree prunable while its directory remains: that
+        # directory is not deleted, so what runs in it is left alone.
+        table = read_procs() if not wt.path.exists() else None
+        if table is not None:
+            for proc in rooted(table, wt.path):
+                if not stop_tree(proc, classify_proc(proc, table), f"worktree {wt.path} registration pruned"):
+                    log(f"PROC-NOT-STOPPED pid={proc.pid} left after pruning {wt.path}")
         ok, _ = git(wt.primary, "worktree", "prune")
         if ok:
             log(f"PRUNED {wt.path} (stale registration)")
             return True, "pruned"
         return False, "prune failed"
+
+    # A fresh look right before the removal: a session may have started in this
+    # worktree since the audit began (a forge lookup can take minutes).
+    table, why = session_gate(wt.path)
+    if table is None:
+        wt.verdict, wt.reason = (HOLD if why.startswith("a live") else UNKNOWN), why
+        return False, why
 
     if wt.drop:
         # Generated guidance edits (DROPPABLE_DIRTY), the only dirt the gates
@@ -905,14 +1400,17 @@ def remove(wt: Worktree, prune_branch: bool = False) -> tuple[bool, str]:
             return False, f"could not discard edits to {', '.join(wt.drop)}"
         log(f"DROPPED {wt.path} uncommitted {' '.join(wt.drop)}")
 
-    # Read before removal: once the directory is gone, a server's cwd can no
+    # Read before removal: once the directory is gone, a process's cwd can no
     # longer be resolved against it.
-    rooted = [s for s in language_servers() if s.cwd is not None and _within(s.cwd, wt.path)]
+    rooted_here = rooted(table, wt.path)
+    if not record_removed(wt):
+        return refuse_unrecorded(wt)
     ok, out = run(["git", "-C", str(wt.primary), "worktree", "remove", str(wt.path)])
     if not ok:
         return False, "git worktree remove refused"
-    for s in rooted:
-        stop_server(s, f"worktree {wt.path} removed")
+    for proc in rooted_here:
+        if not stop_tree(proc, classify_proc(proc, table), f"worktree {wt.path} removed"):
+            log(f"PROC-NOT-STOPPED pid={proc.pid} left after removing {wt.path}")
     detail = f"released={wt.release}" if wt.release else "no-release-tag-gate"
     if wt.pushed == "" and wt.reason.startswith("HEAD on origin/"):
         detail = "content-gate"
@@ -1262,6 +1760,10 @@ PRUNE_BRANCHES = False
 # Set by --repo: the one repo this run audited, so save_state amends rather
 # than replaces the snapshot.
 REPO_SCOPE: str | None = None
+# Every discovered repo (--root), worktree-less primaries included, even under
+# --repo: ownership of a deleted worktree is judged against all of them, and
+# report_procs does the --repo narrowing.
+OWNER_REPOS: list | None = None
 # The caller's directory, or None when it no longer exists — typically the
 # worktree that `git worktree remove` deleted just before this sweep ran.
 START_CWD: Path | None = None
@@ -1295,12 +1797,12 @@ def report(repos: list[Repo], apply: bool):
     print()
     if not sweepable:
         print("Nothing to sweep.")
-        report_orphan_servers(apply)
+        report_procs(apply, OWNER_REPOS or repos, REPO_SCOPE)
         return 0
     if not apply:
         print(f"{len(sweepable)} sweepable, {human(total)} — re-run with --apply to remove "
-              f"(and stop their language servers).")
-        report_orphan_servers(apply)
+              f"(and stop what still runs in them).")
+        report_procs(apply, OWNER_REPOS or repos, REPO_SCOPE)
         return 0
 
     freed = 0
@@ -1314,7 +1816,7 @@ def report(repos: list[Repo], apply: bool):
     # --nudge reads that file. A stale cache here nags about work already done.
     save_state(repos)
     print(f"\nFreed {human(freed)}. Log: {LOG_FILE}")
-    report_orphan_servers(apply)
+    report_procs(apply, OWNER_REPOS or repos, REPO_SCOPE)
     return 0
 
 
@@ -1459,35 +1961,35 @@ def main():
                          "in worktrees idle >= --deps-days; source is never touched")
     ap.add_argument("--deps-days", type=int, default=PRUNE_DEPS_DAYS,
                     help=f"idle threshold for --prune-deps (default {PRUNE_DEPS_DAYS})")
-    ap.add_argument("--lsp", action="store_true",
-                    help="only list (with --apply, stop) fleet-lsp language servers whose "
-                         "checkout no longer exists; no forge lookups")
+    ap.add_argument("--procs", "--lsp", dest="procs", action="store_true",
+                    help="only list (with --apply, stop) processes still running from a deleted "
+                         "worktree, and orphaned chrome-devtools-mcp servers; no forge lookups "
+                         "(--lsp is the old name)")
     args = ap.parse_args()
 
-    global PRUNE_BRANCHES, START_CWD, REPO_SCOPE
+    global PRUNE_BRANCHES, START_CWD, REPO_SCOPE, OWNER_REPOS
     PRUNE_BRANCHES = args.prune_branches
     START_CWD = settle_cwd()
 
     if args.nudge:
         return nudge()
 
-    if args.lsp:
-        orphans = orphan_servers(language_servers())
-        if not orphans:
-            print("No language servers of deleted checkouts.")
-            return 0
-        report_orphan_servers(args.apply)
-        return 0
-
     if not shutil.which("git"):
         print("git not found", file=sys.stderr)
         return 1
+
+    if args.procs:
+        if report_procs(args.apply, discover(args.root or DEFAULT_ROOTS, keep_empty=True),
+                        args.repo) == 0:
+            print("No processes of deleted checkouts.")
+        return 0
 
     if args.scratch:
         return scratch_sweep(args.scratch_root or scratch_root(),
                              args.scratch_days, args.apply, args.json)
 
-    repos = discover(args.root or DEFAULT_ROOTS)
+    every_repo = discover(args.root or DEFAULT_ROOTS, keep_empty=True)
+    repos = [repo for repo in every_repo if repo.worktrees]
     if args.lookup:
         name, branch = args.lookup
         repo = next((r for r in repos if r.path.name == name), None)
@@ -1497,6 +1999,7 @@ def main():
         print(json.dumps({"forge": repo.forge, "base": repo.base,
                           "pr": lookup_pr(repo, branch)}, indent=2))
         return 0
+    OWNER_REPOS = every_repo
     if args.repo:
         REPO_SCOPE = args.repo
         repos = [r for r in repos if r.path.name == args.repo]
@@ -1506,6 +2009,7 @@ def main():
         return prune_deps(repos, args.deps_days, args.apply)
 
     jobs = [(r, w) for r in repos for w in r.worktrees]
+    begin_audit()
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(lambda rw: classify(rw[1], rw[0]), jobs))
     with ThreadPoolExecutor(max_workers=8) as pool:
