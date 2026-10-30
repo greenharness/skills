@@ -38,7 +38,15 @@ aval = "optional"
 amont = "optional"
 amont_agent = "optional"
 
-# --command
+# The leak and NOTICE check, the same as CI.
 [[verification.profiles.default.commands]]
-argv = ["Yes"]
+argv = ["./scripts/check.sh"]
+timeout_seconds = 120
+
+[[verification.profiles.default.commands]]
+argv = ["python3", "-m", "py_compile", "parts/workflow/skills/worktree-sweep/sweep.py"]
+timeout_seconds = 60
+
+[[verification.profiles.default.commands]]
+argv = ["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]
 timeout_seconds = 300
