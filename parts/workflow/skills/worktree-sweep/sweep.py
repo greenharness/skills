@@ -613,6 +613,13 @@ def local_gates(wt: Worktree, repo: Repo) -> bool:
         wt.verdict, wt.reason = HOLD, f"checked out on {wt.branch}"
         return False
 
+    # The first snapshot already shows a live session, so a dry run says HOLD;
+    # remove() looks again right before the removal.
+    table, why = session_verdict(audit_snapshot(), wt.path)
+    if table is None:
+        wt.verdict, wt.reason = (HOLD if why.startswith("a live") else UNKNOWN), why
+        return False
+
     # Two lists rather than `status --porcelain`: run() strips stdout, which
     # eats the leading space of a ` M path` first line and shifts its path.
     ok, tracked = git(wt.path, "diff", "--name-only", "HEAD")
@@ -1026,9 +1033,11 @@ def record_removed(wt: "Worktree") -> bool:
     return True
 
 
-def read_removed(now: float | None = None) -> set[Path]:
+def read_removed(now: float | None = None) -> dict[Path, Path | None]:
+    """Recent removed worktrees, each with the primary it was recorded under
+    (None for an older line that has no primary)."""
     now = time.time() if now is None else now
-    out: set[Path] = set()
+    out: dict[Path, Path | None] = {}
     try:
         text = REMOVED_FILE.read_text()
     except OSError:
@@ -1040,7 +1049,12 @@ def read_removed(now: float | None = None) -> set[Path]:
         except (ValueError, KeyError, TypeError):
             continue
         if isinstance(path, str) and path and now - ts <= REMOVED_DAYS * 86400:
-            out.add(_real(path))
+            primary = rec.get("primary") if isinstance(rec, dict) else None
+            key = _real(path)
+            if isinstance(primary, str) and primary:
+                out[key] = _real(primary)
+            else:
+                out.setdefault(key, None)
     return out
 
 
@@ -1070,9 +1084,24 @@ def _within_real(path: Path, root: Path) -> bool:
         return False
 
 
+def _owners(repos: list["Repo"], removed: dict[Path, Path | None]) -> Owners:
+    primaries = {_real(repo.path) for repo in repos}
+    roots = {_real(worktree.path) for repo in repos for worktree in repo.worktrees} | set(removed)
+    return Owners(roots, primaries)
+
+
 def collect_owners(repos: list["Repo"]) -> Owners:
-    roots = {_real(worktree.path) for repo in repos for worktree in repo.worktrees} | read_removed()
-    return Owners(roots, {_real(repo.path) for repo in repos})
+    """Owners of the given repos, and every removed.jsonl entry."""
+    return _owners(repos, read_removed())
+
+
+def collect_scoped_owners(repos: list["Repo"]) -> Owners:
+    """Owners of the given repos only: a removed.jsonl entry counts when its
+    recorded primary is one of them, so an entry with no primary belongs to
+    none of them."""
+    primaries = {_real(repo.path) for repo in repos}
+    removed = {path: prim for path, prim in read_removed().items() if prim in primaries}
+    return _owners(repos, removed)
 
 
 # selections (pure)
@@ -1169,6 +1198,9 @@ def _tmpdir() -> Path:
     return Path(os.environ.get("TMPDIR") or tempfile.gettempdir())
 
 
+KILL_WAIT_SECONDS = 1.0
+
+
 def stop_tree(top: Proc, kind: str, why: str) -> bool:
     """SIGTERM the process and what it started, then SIGKILL what is still
     there after GRACE_SECONDS. Each pid is re-read just before it is signalled:
@@ -1176,9 +1208,14 @@ def stop_tree(top: Proc, kind: str, why: str) -> bool:
     is skipped. fleet-lsp starts a fresh server if the checkout is asked about
     again."""
     import signal
+
+    def not_stopped(why_not: str) -> bool:
+        log(f"PROC-NOT-STOPPED pid={top.pid} comm={os.path.basename(top.comm)} ({why_not})")
+        return False
+
     fresh = read_procs()
     if fresh is None:
-        return False
+        return not_stopped("could not read the process table")
     prot = protected(fresh, os.getpid())
     members = [top]
     members += [fresh[pid] for pid in _descendants(top.pid, fresh) if pid in fresh]
@@ -1187,8 +1224,10 @@ def stop_tree(top: Proc, kind: str, why: str) -> bool:
         now = reread(proc.pid)
         return now is not None and now == (proc.start, proc.comm)
 
-    if top.pid in prot or not unchanged(top):
-        return False
+    if top.pid in prot:
+        return not_stopped("protected")
+    if not unchanged(top):
+        return not_stopped("pid gone or reused")
     live = [proc for proc in members if proc.pid not in prot and unchanged(proc)]
     profiles = [profile for proc in live if (profile := profile_dir(proc, _tmpdir())) is not None]
     for proc in live:
@@ -1197,7 +1236,7 @@ def stop_tree(top: Proc, kind: str, why: str) -> bool:
         except ProcessLookupError:
             pass
         except PermissionError:
-            return False
+            return not_stopped(f"permission denied signalling pid {proc.pid}")
     deadline = time.time() + GRACE_SECONDS
     while time.time() < deadline and any(pid_alive(proc.pid) for proc in live):
         time.sleep(0.1)
@@ -1207,23 +1246,55 @@ def stop_tree(top: Proc, kind: str, why: str) -> bool:
                 os.kill(proc.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+    deadline = time.time() + KILL_WAIT_SECONDS
+    while time.time() < deadline and any(pid_alive(proc.pid) for proc in live):
+        time.sleep(0.05)
     cwd = top.cwd
-    log(f"PROC-STOPPED kind={kind} pid={top.pid} comm={os.path.basename(top.comm)} cwd={cwd} ({why})")
-    if not any(pid_alive(proc.pid) for proc in live):
+    if any(pid_alive(proc.pid) for proc in live):
         for profile in dict.fromkeys(profiles):
-            try:
-                shutil.rmtree(profile)
-                log(f"PROFILE-REMOVED {profile}")
-            except OSError as error:
-                log(f"PROFILE-KEPT {profile}: {error}")
+            log(f"PROFILE-KEPT {profile}: still running")
+        return not_stopped("still alive after SIGKILL")
+    log(f"PROC-STOPPED kind={kind} pid={top.pid} comm={os.path.basename(top.comm)} cwd={cwd} ({why})")
+    for profile in dict.fromkeys(profiles):
+        try:
+            shutil.rmtree(profile)
+            log(f"PROFILE-REMOVED {profile}")
+        except OSError as error:
+            log(f"PROFILE-KEPT {profile}: {error}")
     return True
+
+
+_SNAPSHOT: list | None = None          # [table] once an audit has begun
+_SNAPSHOT_LOCK = threading.Lock()
+
+
+def begin_audit():
+    """Share one process-table read among the audit's gates."""
+    global _SNAPSHOT
+    with _SNAPSHOT_LOCK:
+        _SNAPSHOT = []
+
+
+def audit_snapshot():
+    """The table for the gates: read once per audit after begin_audit(), else
+    read each time. The removal re-reads its own."""
+    with _SNAPSHOT_LOCK:
+        if _SNAPSHOT is None:
+            return read_procs()
+        if not _SNAPSHOT:
+            _SNAPSHOT.append(read_procs())
+        return _SNAPSHOT[0]
 
 
 def session_gate(path: Path):
     """The gate `a live session works here`, run on a fresh table right before
     a removal. Returns (table, "") when clear, else (None, reason): HOLD when a
     claude process sits in path, and a refusal when that cannot be evaluated."""
-    table = read_procs()
+    return session_verdict(read_procs(), path)
+
+
+def session_verdict(table, path: Path):
+    """session_gate evaluated against a given table."""
     if table is None:
         return None, "could not evaluate whether a live session works here"
     for proc in table.values():
@@ -1236,9 +1307,16 @@ def session_gate(path: Path):
     return table, ""
 
 
-def report_procs(apply: bool, repos: list["Repo"]) -> int:
-    """Print and (with apply) stop processes of deleted checkouts. Returns how
-    many it reported, or -1 when the process table cannot be read."""
+def in_scope(repos: list["Repo"], name: str | None) -> list["Repo"]:
+    """The repositories --repo selects (all of them without it)."""
+    return [r for r in repos if r.path.name == name] if name else repos
+
+
+def report_procs(apply: bool, repos: list["Repo"], name: str | None = None) -> int:
+    """Print and (with apply) stop processes of deleted checkouts. Ownership is
+    computed over every repo given; name keeps only orphans owned by that repo,
+    and an orphan owned by an out-of-scope repo is neither printed nor counted.
+    Returns how many it reported, or -1 when the process table cannot be read."""
     table = read_procs()
     if table is None:
         print("[worktree-sweep] could not read the process table; skipping processes.",
@@ -1246,7 +1324,12 @@ def report_procs(apply: bool, repos: list["Repo"]) -> int:
         return -1
     prot = protected(table, os.getpid())
     owners = collect_owners(repos)
-    found = {proc.pid: (proc, "checkout gone") for proc in orphans(table, owners, prot)}
+    scoped = collect_scoped_owners(in_scope(repos, name)) if name else owners
+
+    def in_scope_proc(proc: Proc) -> bool:
+        return proc.cwd is not None and scoped.root_of(_real(proc.cwd)) is not None
+    found = {proc.pid: (proc, "checkout gone")
+             for proc in orphans(table, owners, prot) if in_scope_proc(proc)}
     for proc in orphan_mcp(table, table, prot):
         found.setdefault(proc.pid, (proc, "orphaned chrome-devtools-mcp"))
     keep = {proc.pid for proc in _top_level([proc for proc, _ in found.values()], table)}
@@ -1294,7 +1377,8 @@ def remove(wt: Worktree, prune_branch: bool = False) -> tuple[bool, str]:
         table = read_procs() if not wt.path.exists() else None
         if table is not None:
             for proc in rooted(table, wt.path):
-                stop_tree(proc, classify_proc(proc, table), f"worktree {wt.path} registration pruned")
+                if not stop_tree(proc, classify_proc(proc, table), f"worktree {wt.path} registration pruned"):
+                    log(f"PROC-NOT-STOPPED pid={proc.pid} left after pruning {wt.path}")
         ok, _ = git(wt.primary, "worktree", "prune")
         if ok:
             log(f"PRUNED {wt.path} (stale registration)")
@@ -1325,7 +1409,8 @@ def remove(wt: Worktree, prune_branch: bool = False) -> tuple[bool, str]:
     if not ok:
         return False, "git worktree remove refused"
     for proc in rooted_here:
-        stop_tree(proc, classify_proc(proc, table), f"worktree {wt.path} removed")
+        if not stop_tree(proc, classify_proc(proc, table), f"worktree {wt.path} removed"):
+            log(f"PROC-NOT-STOPPED pid={proc.pid} left after removing {wt.path}")
     detail = f"released={wt.release}" if wt.release else "no-release-tag-gate"
     if wt.pushed == "" and wt.reason.startswith("HEAD on origin/"):
         detail = "content-gate"
@@ -1675,8 +1760,9 @@ PRUNE_BRANCHES = False
 # Set by --repo: the one repo this run audited, so save_state amends rather
 # than replaces the snapshot.
 REPO_SCOPE: str | None = None
-# Every discovered repo, even under --repo: ownership of a deleted worktree
-# is judged against all of them.
+# Every discovered repo (--root), worktree-less primaries included, even under
+# --repo: ownership of a deleted worktree is judged against all of them, and
+# report_procs does the --repo narrowing.
 OWNER_REPOS: list | None = None
 # The caller's directory, or None when it no longer exists — typically the
 # worktree that `git worktree remove` deleted just before this sweep ran.
@@ -1711,12 +1797,12 @@ def report(repos: list[Repo], apply: bool):
     print()
     if not sweepable:
         print("Nothing to sweep.")
-        report_procs(apply, OWNER_REPOS or repos)
+        report_procs(apply, OWNER_REPOS or repos, REPO_SCOPE)
         return 0
     if not apply:
         print(f"{len(sweepable)} sweepable, {human(total)} — re-run with --apply to remove "
               f"(and stop what still runs in them).")
-        report_procs(apply, OWNER_REPOS or repos)
+        report_procs(apply, OWNER_REPOS or repos, REPO_SCOPE)
         return 0
 
     freed = 0
@@ -1730,7 +1816,7 @@ def report(repos: list[Repo], apply: bool):
     # --nudge reads that file. A stale cache here nags about work already done.
     save_state(repos)
     print(f"\nFreed {human(freed)}. Log: {LOG_FILE}")
-    report_procs(apply, OWNER_REPOS or repos)
+    report_procs(apply, OWNER_REPOS or repos, REPO_SCOPE)
     return 0
 
 
@@ -1893,7 +1979,8 @@ def main():
         return 1
 
     if args.procs:
-        if report_procs(args.apply, discover(args.root or DEFAULT_ROOTS, keep_empty=True)) == 0:
+        if report_procs(args.apply, discover(args.root or DEFAULT_ROOTS, keep_empty=True),
+                        args.repo) == 0:
             print("No processes of deleted checkouts.")
         return 0
 
@@ -1922,6 +2009,7 @@ def main():
         return prune_deps(repos, args.deps_days, args.apply)
 
     jobs = [(r, w) for r in repos for w in r.worktrees]
+    begin_audit()
     with ThreadPoolExecutor(max_workers=4) as pool:
         list(pool.map(lambda rw: classify(rw[1], rw[0]), jobs))
     with ThreadPoolExecutor(max_workers=8) as pool:

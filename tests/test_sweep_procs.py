@@ -245,7 +245,7 @@ class Removed(Base):
         old = {"path": str(self.root / "old"), "primary": "x", "time": time.time() - 15 * 86400}
         with sweep.REMOVED_FILE.open("a") as handle:
             handle.write("not json\n[1]\n" + json.dumps({"path": 3, "time": 1}) + "\n" + json.dumps(old) + "\n")
-        self.assertEqual(sweep.read_removed(), {self.root / "fresh"})
+        self.assertEqual(sweep.read_removed(), {self.root / "fresh": self.root / "repo"})
 
     def test_save_state_leaves_it(self):
         sweep.record_removed(self.wt("w"))
@@ -301,7 +301,7 @@ class RemoveFlow(Base):
         self.assertLess(next(index for index, event in enumerate(self.events) if "remove" in event),
                         kinds.index("stop"))
         self.assertIn(("stop", 3, "process"), self.events)
-        self.assertEqual(sweep.read_removed(), {self.path})
+        self.assertEqual(sweep.read_removed(), {self.path: self.primary})
 
     def test_stale_registration_stops_before_prune(self):
         self.wt.prunable = True
@@ -312,7 +312,7 @@ class RemoveFlow(Base):
         self.assertEqual((ok, what), (True, "pruned"))
         self.assertEqual(self.events[0][0], "stop")
         self.assertIn("prune", self.events[1])
-        self.assertEqual(sweep.read_removed(), {self.path})
+        self.assertEqual(sweep.read_removed(), {self.path: self.primary})
 
     def test_prunable_with_existing_directory_leaves_processes(self):
         self.wt.prunable = True
@@ -374,6 +374,77 @@ class Reporting(Base):
         self.assertEqual([proc.pid for proc in sweep.orphans(table, owners, {1})], [2])
         self.assertEqual(sweep.unowned_orphans(table, owners, {1}), [])
 
+    def test_repo_scope_limits_ownership(self):
+        for name in ("one", "two"):
+            subprocess.run(["git", "init", "-q", str(self.root / name)], check=True)
+        table = make_table(make_proc(1, 0, "launchd"), make_proc(2, 1, "sleep", cwd=self.root / "two-wt-x"))
+        every = sweep.discover([self.root], keep_empty=True)
+        scoped = [r for r in every if r.path.name == "one"]
+        with mock.patch.object(sweep, "read_procs", return_value=table), \
+                mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+            sweep.report_procs(False, scoped)
+        self.assertNotIn("ORPHAN-PROC", stdout.getvalue())
+        self.assertEqual(sweep.orphans(table, sweep.collect_owners(scoped), {1}), [])
+        self.assertEqual([p.pid for p in sweep.orphans(table, sweep.collect_owners(every), {1})], [2])
+
+    def test_removed_entry_scoped_by_its_primary(self):
+        for name in ("one", "two"):
+            subprocess.run(["git", "init", "-q", str(self.root / name)], check=True)
+        gone = self.root / "two-wt-x"
+        sweep.REMOVED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        sweep.REMOVED_FILE.write_text(json.dumps(
+            {"path": str(gone), "primary": str(self.root / "two"), "time": time.time()}) + "\n")
+        table = make_table(make_proc(1, 0, "launchd"), make_proc(2, 1, "sleep", cwd=gone))
+        every = sweep.discover([self.root], keep_empty=True)
+        for name, expect in (("one", False), ("two", True), (None, True)):
+            with mock.patch.object(sweep, "read_procs", return_value=table), \
+                    mock.patch.object(sweep, "protected", return_value={1}), \
+                    mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+                sweep.report_procs(False, every, name)
+            self.assertEqual("ORPHAN-PROC" in stdout.getvalue(), expect, name)
+            if not expect:
+                self.assertNotIn("ORPHAN-UNOWNED", stdout.getvalue(), name)
+
+    def test_removed_entry_without_primary_only_without_scope(self):
+        for name in ("one", "two"):
+            subprocess.run(["git", "init", "-q", str(self.root / name)], check=True)
+        gone = self.root / "elsewhere"
+        sweep.REMOVED_FILE.parent.mkdir(parents=True, exist_ok=True)
+        sweep.REMOVED_FILE.write_text(json.dumps({"path": str(gone), "time": time.time()}) + "\n")
+        self.assertEqual(sweep.read_removed(), {gone: None})
+        table = make_table(make_proc(1, 0, "launchd"), make_proc(2, 1, "sleep", cwd=gone))
+        every = sweep.discover([self.root], keep_empty=True)
+        for name, expect in (("one", False), (None, True)):
+            with mock.patch.object(sweep, "read_procs", return_value=table), \
+                    mock.patch.object(sweep, "protected", return_value={1}), \
+                    mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+                sweep.report_procs(False, every, name)
+            self.assertEqual("ORPHAN-PROC" in stdout.getvalue(), expect, name)
+
+    def test_main_procs_honours_repo(self):
+        for name in ("one", "two"):
+            subprocess.run(["git", "init", "-q", str(self.root / name)], check=True)
+        table = make_table(make_proc(1, 0, "launchd"), make_proc(2, 1, "sleep", cwd=self.root / "two-wt-x"))
+        argv = ["sweep.py", "--procs", "--root", str(self.root)]
+        for extra, expect in (([], True), (["--repo", "one"], False), (["--repo", "two"], True)):
+            with mock.patch.object(sys, "argv", argv + extra), \
+                    mock.patch.object(sweep, "read_procs", return_value=table), \
+                    mock.patch.object(sweep, "protected", return_value={1}), \
+                    mock.patch.object(sys, "stdout", new_callable=io.StringIO) as stdout:
+                sweep.main()
+            self.assertEqual("ORPHAN-PROC" in stdout.getvalue(), expect, extra)
+            if not expect:
+                self.assertNotIn("ORPHAN-UNOWNED", stdout.getvalue(), extra)
+                self.assertIn("No processes of deleted checkouts.", stdout.getvalue(), extra)
+
+    def test_root_scope_selects_scratch_repo_sibling(self):
+        scratch = self.root / "scratch"
+        scratch.mkdir()
+        subprocess.run(["git", "init", "-q", str(scratch / "repo")], check=True)
+        table = make_table(make_proc(1, 0, "launchd"), make_proc(2, 1, "sleep", cwd=scratch / "repo-wt-x"))
+        owners = sweep.collect_owners(sweep.discover([scratch], keep_empty=True))
+        self.assertEqual([p.pid for p in sweep.orphans(table, owners, {1})], [2])
+
 
 class StopTree(Base):
     def test_skips_changed_and_protected(self):
@@ -417,6 +488,97 @@ class StopTree(Base):
                 mock.patch.dict(os.environ, {"TMPDIR": str(tmpdir)}):
             sweep.stop_tree(browser_proc, "browser", "test")
         self.assertIn(f"PROFILE-KEPT {profile}: busy", sweep.LOG_FILE.read_text())
+
+    def test_permission_error_is_logged(self):
+        top = make_proc(2, 1, "zsh")
+        child = make_proc(3, 2, "sleep")
+        fresh = make_table(make_proc(1, 0, "launchd"), top, child)
+
+        def kill(pid, sig):
+            if pid == 3:
+                raise PermissionError
+        with mock.patch.object(sweep, "read_procs", return_value=fresh), \
+                mock.patch.object(sweep, "reread", return_value=None) as reread:
+            reread.side_effect = lambda pid: (START, {2: "zsh", 3: "sleep"}[pid])
+            with mock.patch.object(sweep.os, "kill", side_effect=kill):
+                self.assertFalse(sweep.stop_tree(top, "process", "test"))
+        self.assertIn("PROC-NOT-STOPPED pid=2 comm=zsh (", sweep.LOG_FILE.read_text())
+
+    def test_profile_kept_when_browser_still_running(self):
+        tmpdir = self.root / "tmp"
+        tmpdir.mkdir()
+        profile = tmpdir / "playwright_p"
+        profile.mkdir()
+        browser_proc = make_proc(2, 1, "chrome", f"/o/chrome --headless --user-data-dir={profile}")
+        with mock.patch.object(sweep, "read_procs", return_value=make_table(make_proc(1, 0, "launchd"), browser_proc)), \
+                mock.patch.object(sweep, "reread", return_value=(START, "chrome")), \
+                mock.patch.object(sweep.os, "kill"), mock.patch.object(sweep, "pid_alive", return_value=True), \
+                mock.patch.object(sweep, "GRACE_SECONDS", 0), \
+                mock.patch.object(sweep, "KILL_WAIT_SECONDS", 0.1), \
+                mock.patch.dict(os.environ, {"TMPDIR": str(tmpdir)}):
+            stopped = sweep.stop_tree(browser_proc, "browser", "test")
+        self.assertTrue(profile.exists())
+        self.assertFalse(stopped)
+        log = sweep.LOG_FILE.read_text()
+        self.assertIn(f"PROFILE-KEPT {profile}: still running", log)
+        self.assertIn("PROC-NOT-STOPPED pid=2 comm=chrome (still alive after SIGKILL)", log)
+        self.assertNotIn("PROC-STOPPED", log)
+
+
+class ClassifyForge(Base):
+    def setUp(self):
+        super().setUp()
+        self.repo = sweep.Repo(path=self.root / "r", forge="github", owner="o", name="r")
+        self.wt_path = self.root / "wt"
+        self.wt_path.mkdir()
+
+    def test_merged_released_pr_sweeps(self):
+        wt = sweep.Worktree(path=self.wt_path, primary=self.repo.path, branch="feat", head="h")
+        self.repo.has_vtags = True
+        pr = {"state": "MERGED", "number": 7, "merge_sha": "abc123", "base": self.repo.base}
+
+        def fake_git(_repo, *args, **_kw):
+            return (True, "v1.2.0\nv1.3.0") if args[0] == "tag" else (True, "")
+        with mock.patch.object(sweep, "local_gates", return_value=True), \
+                mock.patch.object(sweep, "lookup_pr", return_value=pr), \
+                mock.patch.object(sweep, "git", side_effect=fake_git):
+            sweep.classify(wt, self.repo)
+        self.assertEqual(wt.verdict, sweep.SWEEP)
+        self.assertEqual(wt.release, "v1.3.0")
+
+    def test_gates_share_one_snapshot(self):
+        table = make_table(make_proc(1, 0, "launchd"))
+        wts = []
+        for name in ("a", "b", "c"):
+            path = self.root / name
+            path.mkdir()
+            wts.append(sweep.Worktree(path=path, primary=self.repo.path, branch="feat", head="h"))
+        sweep.begin_audit()
+        self.addCleanup(setattr, sweep, "_SNAPSHOT", None)
+        with mock.patch.object(sweep, "read_procs", return_value=table) as reader:
+            for wt in wts:
+                sweep.classify(wt, self.repo)
+        self.assertEqual(reader.call_count, 1)
+
+    def test_unreadable_process_table_is_unknown(self):
+        wt = sweep.Worktree(path=self.wt_path, primary=self.repo.path, branch="feat", head="h")
+        sweep.begin_audit()
+        self.addCleanup(setattr, sweep, "_SNAPSHOT", None)
+        with mock.patch.object(sweep, "read_procs", return_value=None), \
+                mock.patch.object(sweep, "lookup_pr", side_effect=AssertionError("no forge call")), \
+                mock.patch.object(sweep, "remove", side_effect=AssertionError("no removal")):
+            sweep.classify(wt, self.repo)
+        self.assertEqual((wt.verdict, wt.reason),
+                         (sweep.UNKNOWN, "could not evaluate whether a live session works here"))
+
+    def test_dry_run_holds_live_session(self):
+        wt = sweep.Worktree(path=self.wt_path, primary=self.repo.path, branch="feat", head="h")
+        table = make_table(make_proc(1, 0, "launchd"), make_proc(2, 1, "claude", cwd=self.wt_path))
+        with mock.patch.object(sweep, "read_procs", return_value=table), \
+                mock.patch.object(sweep, "lookup_pr", side_effect=AssertionError("no forge call")), \
+                mock.patch.object(sweep, "remove", side_effect=AssertionError("no removal")):
+            sweep.classify(wt, self.repo)
+        self.assertEqual((wt.verdict, wt.reason), (sweep.HOLD, "a live session works here"))
 
 
 if __name__ == "__main__":
