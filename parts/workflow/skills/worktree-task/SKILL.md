@@ -29,6 +29,26 @@ git worktree add ../<repo>-wt-<slug> -b <branch-name> origin/main
 - After creating it, `cd` into the new worktree path for the rest of the task. Confirm you're on the right branch with `git branch --show-current` before editing.
 - Do NOT symlink `node_modules` or other deps into the worktree as a shortcut — it has broken dev-server file resolution before (see `application_landscape_e2e_debug_traps` project memory). Let the worktree install its own deps — the next step does it.
 
+### Check what is in flight (before the first edit)
+
+Another session may already work this change, or may have just landed it.
+For each repository the plan's `repos:` names, run:
+
+```bash
+amont-agent board --repo <repo> --fetch
+```
+
+- For each worktree, branch or plan of another session that overlaps this
+  task, write one line: what it is, and the next action. Read its plan or
+  pull request, message that session (`ListAgents` names the peers,
+  `SendMessage` reaches one), or ask the person. Never start a second
+  branch for the same change.
+- A commit under "landed" that already does this task: stop and tell the
+  person.
+- When `amont-agent board --help` fails (amont-agent absent or older), run
+  `git log --oneline HEAD..origin/main` instead and say the board is a gap.
+- Done when every overlap has a next action, or the output names none.
+
 ### Bootstrap dependencies (before the first commit)
 
 A fresh worktree has no `node_modules`, `.venv` or build cache. The plan
