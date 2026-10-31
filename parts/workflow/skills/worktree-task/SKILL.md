@@ -19,35 +19,40 @@ If no slug is given in start mode, derive a short kebab-case one from the task a
 
 ## Start
 
-```bash
-cd <repo-root>
-git fetch origin -q
-git worktree add ../<repo>-wt-<slug> -b <branch-name> origin/main
-```
-
-- Pick `<branch-name>` following this repo's existing convention (check recent branch names via `git branch -a` / `git log --all --oneline -20` if unsure — e.g. `feat/…`, `fix/…`).
-- After creating it, `cd` into the new worktree path for the rest of the task. Confirm you're on the right branch with `git branch --show-current` before editing.
-- Do NOT symlink `node_modules` or other deps into the worktree as a shortcut — it has broken dev-server file resolution before (see `application_landscape_e2e_debug_traps` project memory). Let the worktree install its own deps — the next step does it.
-
-### Check what is in flight (before the first edit)
+### Check what is in flight (before the worktree exists)
 
 Another session may already work this change, or may have just landed it.
-For each repository the plan's `repos:` names, run:
+From `<repo-root>`, for each repository the plan's `repos:` names (else the
+current repository), run:
 
 ```bash
+git fetch origin -q
 amont-agent board --repo <repo> --fetch
 ```
 
 - For each worktree, branch or plan of another session that overlaps this
   task, write one line: what it is, and the next action. Read its plan or
   pull request, message that session (`ListAgents` names the peers,
-  `SendMessage` reaches one), or ask the person. Never start a second
-  branch for the same change.
-- A commit under "landed" that already does this task: stop and tell the
-  person.
+  `SendMessage` reaches one), or ask the person. Create the worktree below
+  only when no other session already works this change.
+- A commit under "just landed" that already does this task: stop and tell
+  the person.
 - When `amont-agent board --help` fails (amont-agent absent or older), run
-  `git log --oneline HEAD..origin/main` instead and say the board is a gap.
+  `git log --oneline HEAD..origin/<default>` instead and say the board is a
+  gap.
 - Done when every overlap has a next action, or the output names none.
+  Then create the worktree.
+
+### Create the worktree
+
+```bash
+cd <repo-root>
+git worktree add ../<repo>-wt-<slug> -b <branch-name> origin/main
+```
+
+- Pick `<branch-name>` following this repo's existing convention (check recent branch names via `git branch -a` / `git log --all --oneline -20` if unsure — e.g. `feat/…`, `fix/…`).
+- After creating it, `cd` into the new worktree path for the rest of the task. Confirm you're on the right branch with `git branch --show-current` before editing.
+- Do NOT symlink `node_modules` or other deps into the worktree as a shortcut — it has broken dev-server file resolution before (see `application_landscape_e2e_debug_traps` project memory). Let the worktree install its own deps — the next step does it.
 
 ### Bootstrap dependencies (before the first commit)
 
