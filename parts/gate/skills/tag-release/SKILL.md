@@ -13,6 +13,20 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
 
 ## Steps
 
+0. **Check that no other session releases this version.** Two sessions
+   that prepare the same release race to the tag.
+   ```bash
+   amont-agent board --repo <repo> --fetch
+   git ls-remote --tags origin "v<version>"
+   ```
+   For each branch the board lists with a session on it, run
+   `git diff --stat origin/<default>...<branch> -- <version file>`. Stop,
+   and message that session or ask the person, when the tag already exists
+   on origin, or when a branch a live session holds changes the version
+   file. When `amont-agent board --help` fails, run the `git ls-remote`
+   alone and say the board is a gap. Done when the tag is absent and no
+   live session's branch bumps the version, or the person said to go on.
+
 1. **Land the code change as its own commit, if not already committed.**
    ```bash
    git status

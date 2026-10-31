@@ -22,6 +22,24 @@ variables, so the value stays out of what you show. A captured request
 carries auth headers: quote only the lines that carry the signal. If the
 redacted output is not enough, say so and ask.
 
+## Phase 0: Already fixed or in flight?
+
+Another session may have fixed this bug, or may be fixing it now. In the
+repository of the symptom, run:
+
+```bash
+git fetch origin -q && git log --oneline HEAD..origin/<default> -- <paths of the symptom>
+amont-agent board --repo <repo>
+```
+
+- A landed commit that names this symptom: rebase onto it and re-run the
+  failing command before you diagnose anything.
+- A live session whose worktree or plan covers this bug: message it
+  (`SendMessage`) or ask the person, instead of a second fix.
+- When `amont-agent board --help` fails, run the `git log` alone and say
+  the board is a gap.
+- Done when both outputs are shown, and each match has a next action.
+
 ## Phase 1: Build a red loop
 
 **This is the skill.** With a **tight** pass/fail signal that goes **red** on
