@@ -13,4 +13,8 @@ an in-flight check in `worktree-task`, `diagnosing-bugs` and
 
 ## Verification
 
+- `sh scripts/check.sh` (no machine-specific content) → expected exit 0 → actual exit 0, after dropping two `work.*` rule ids the check rejects in published skills.
+- The step's command on a real repository, `amont-agent board --repo greenharness-skills --fetch` with amont-agent 3.10.0 installed → expected the in-flight worktrees, their plans and what landed → actual: this branch's worktree with plan "Board and programme map", two unmerged branches (one with its plan), three commits landed in 2 days; 16.2 s with the fetch.
+- Fallback: `amont-agent board --help` exits 0 on 3.10.0, so the board part applies; on an older amont-agent the steps say to run the `git log` part alone.
+
 ## Implementation review
