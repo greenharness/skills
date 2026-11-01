@@ -25,6 +25,13 @@ What changes for whom, in two or three sentences.
 ## Non-goals
 What this deliberately leaves alone.
 
+## Code review
+The expert profiles that review the code at the close, beside
+implementation-review: one line per repository, from
+`amont-agent plan-panel --code-review`.
+- <repo>: backend, lang:<language>, unix (tui left out: <reason>)
+- <other-repo>: none — <reason>
+
 ## Behaviour
 The observable behaviour after the change. This is the spec. Link a picked
 artboard here when one exists (handoff.prove-fidelity).
