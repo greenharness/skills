@@ -261,8 +261,10 @@ below names one of them.
      prompt carries, in order: the TREE line verbatim; `Round 1.`; the
      RULES line verbatim; `Profile: <role>` (exactly one, matching the
      agent: the hook counts nothing else); the brief's path with "read it
-     in full", never the brief inline (it carries its own `Profile:` line,
-     and a prompt with two counts for nothing); "Read the plan and the diff. Open at most 10 more
+     in full" (the brief is long, and a path keeps the prompt small; the
+     hook reads the `Profile:` line and the TREE block only from the
+     prompt's header, the lines before any heading, fence or diff, so they
+     must come before any pasted text); "Read the plan and the diff. Open at most 10 more
      files or 1,500 lines. Follow your output contract." The push hook
      refuses a push that misses a declared profile, naming the agent to
      launch.
