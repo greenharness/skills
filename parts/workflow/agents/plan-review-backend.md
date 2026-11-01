@@ -41,7 +41,12 @@ Look for:
 - areas the plan creates without declaring them: the brief lists the
   detected areas (language, ui, ops, cli, large). A plan adding a CLI, an
   interface or infrastructure that is not in that list and not in its
-  `adds=` is a blocking finding. Name the `adds=` value it needs.
+  `adds=` is a blocking finding. Name the `adds=` value it needs;
+- the `## Code review` section: it exists in the body, has one line for
+  every repository the plan touches, and each profile left out of what
+  `amont-agent plan-panel --code-review` proposes carries a reason that
+  holds for this change. A missing section, a missing repository or a
+  reason that does not hold is a finding, with the line it needs.
 
 Every finding needs evidence: a `file:line`, a measured number, or a cited
 source.

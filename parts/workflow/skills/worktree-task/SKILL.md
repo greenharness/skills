@@ -242,7 +242,27 @@ below names one of them.
      `## Interface review` section of the plan. There is no hook gate, no
      Overrule question and no Delta round of its own. Interface fixes land
      before the closing commit; a fix that changes code returns to F1, and
-     the implementation-review pass on the new tree is its Delta.
+     the implementation-review pass on the new tree is its Delta. When the
+     plan's `## Code review` declares `ui-design`, interface-review is that
+     profile instead (step 2c), gated, and this advisory launch is skipped.
+  2c. **Code-review profiles** (skipped when the plan has no
+     `## Code review` section, or its line for this repository is
+     `none — …`). For each profile the line declares, build its brief:
+     ```bash
+     amont-agent review-brief --profile <role> --plan <landed plan> > <scratch>/brief-<role>.md
+     ```
+     It carries the TREE and RULES lines, `Profile: <role>` and the judge
+     rules that profile reviews, and no candidates: candidates are
+     implementation-review's alone. The agent is `code-review-<role>`; for
+     `lang:<x>` it is `code-review-language`, for `ui-design` it is
+     `interface-review` with step 2b's inputs added to its brief. Each
+     prompt carries, in order: the TREE line verbatim; `Round 1.`; the
+     RULES line verbatim; `Profile: <role>` (exactly one, matching the
+     agent: the hook counts nothing else); the brief, or its path with
+     "read it in full"; "Read the plan and the diff. Open at most 10 more
+     files or 1,500 lines. Follow your output contract." The push hook
+     refuses a push that misses a declared profile, naming the agent to
+     launch.
   3. Launch the `implementation-review` agent once, in the foreground,
      with, in order: the TREE line verbatim; `Round 1.`; the RULES line
      verbatim (the push check journals a review whose prompt lacks it, or
@@ -254,10 +274,13 @@ below names one of them.
      `Candidates:` block ruling on every listed id";
      "Read the plan and the diff. Open at most 10 more files or 1,500
      lines. Follow your output contract." A background launch counts only
-     after its completion notification.
-  4. Post `returned: <verdict> (<tokens>, <seconds>)`.
-  5. Record it in the plan under `## Implementation review`, at most 5
-     lines of about 20 words, verdict first: the verdict; findings fixed;
+     after its completion notification. Launch it in ONE message with every
+     step 2c profile, so they all run in parallel.
+  4. Post `returned: <verdict> (<tokens>, <seconds>)`, one line per
+     reviewer as each returns (`k/N returned: <role> <verdict> …`).
+  5. Record it in the plan under `## Implementation review`, one line per
+     reviewer and at most 5 lines in all, about 20 words each, verdict
+     first: the verdict; findings fixed;
      findings kept as `deliberate: <reason>`; tokens and seconds. This is
      the branch's **closing commit**,
      the counterpart of the plan commit that opened it: in the same commit
@@ -276,11 +299,20 @@ below names one of them.
      "answer resolved / not resolved / new blocker for each". The Delta may
      resume the same reviewer with `SendMessage` (the block first in the
      message) instead of a fresh launch: the hook counts a resumed round on
-     its new tree (amont-agent ≥ 2.30). There is no
+     its new tree (amont-agent ≥ 2.30). Among the step 2c profiles, one
+     that said `rework` or `approve-with-changes` re-runs as a Delta too;
+     one that said `approve` keeps its pass when the hook can carry it: the
+     same landed plan and `## Code review` line, its reviewed commit an
+     ancestor of the pushed one after the merge-base, and
+     implementation-review passed the new tree. A rebase carries nothing by
+     ancestry, so its profiles re-run unless the branch patch is unchanged.
+     A resumed profile round may omit its `Profile:` line; it keeps its
+     launch's. There is no
      third pass: a `rework` that survives the Delta goes to the person with
      a **marked** AskUserQuestion — its text starts with
      `[implementation-review <repo>@<sha64>]` (the full id from
-     `tree-sha`), its options are exactly `Overrule`, `Fix`, `Hold`, with
+     `tree-sha`), or `[implementation-review <repo>@<sha64> profile=<role>]`
+     for a profile's rework, its options are exactly `Overrule`, `Fix`, `Hold`, with
      both positions stated and `answers` never pre-filled. `Overrule` is
      recorded by the hook itself and in the plan as `deliberate:
      overruled — <reason>`; `Fix` returns to F1 and the next F4b is a

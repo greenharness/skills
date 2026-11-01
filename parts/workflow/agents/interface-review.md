@@ -32,4 +32,28 @@ A decision of this repository in the brief outranks a value in a skill.
 Output a findings table, one row per finding: severity, `path/to/file:line`,
 the problem as the diff introduced or regressed it, the owning skill and
 section, and the fix. Close with the domains `Not reviewed` and the claims
-`Not verified`. Findings are advisory; do not return a gate verdict.
+`Not verified`.
+
+## Two modes
+
+**Advisory** (no `Profile:` line in the prompt): worktree-task step 2b
+launched you because the diff touches the interface and the plan declared
+no `ui-design` review. Findings are advisory; do not return a gate verdict.
+
+**Gated** (the prompt carries `Profile: ui-design`): the plan's
+`## Code review` section declared a ui-design review, and the push hook
+waits for your verdict. The prompt then also carries the
+`<<<TREE repo=… sha=…>>>` block, `Round 1.` or `Delta.` and the
+`<<<RULES sha=…>>>` line. Your result starts with one line the hook reads:
+
+```
+Verdict: approve | approve-with-changes | rework
+```
+
+then the findings table and the two closing lists as above. `rework` when
+the change cannot ship as written for an interface reason whose fix changes
+the design; `approve-with-changes` when every finding has a concrete edit;
+`approve` only when the brief carried every input above. A missing input
+(scope block, traits, the design-system decisions, the full diff) is a
+finding, and never an `approve`. On a `Delta`, answer each earlier finding
+`resolved`, `not resolved` or `new blocker` first; there is no third round.

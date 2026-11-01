@@ -41,6 +41,28 @@ adds that do not exist yet:
 The plan also needs a `## Review panel` section directly under the H1. Write
 a placeholder line there now; step 7 fills it.
 
+And a `## Code review` section in the body, after `## Non-goals`: which
+expert profiles review the code at the branch's close (worktree-task F4b),
+beside implementation-review. Propose it with
+
+```sh
+amont-agent plan-panel --code-review <plan.md>
+```
+
+which prints one `<repo><TAB><profiles|none>` line per repository from its
+areas. Write one line per repository:
+
+```markdown
+## Code review
+- my-app: backend, lang:rust, unix (tui left out: no output change)
+- docs-repo: none — markdown only
+```
+
+A profile left out of the proposal names its reason in parentheses, and
+the panel's backend reviewer checks it. The section is in the body, not the
+front matter, so the panel's sha binds it. A plan without it keeps a single
+implementation review.
+
 ## 1. What to run
 
 ```sh
