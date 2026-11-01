@@ -217,7 +217,9 @@ below names one of them.
      - the constraint index;
      - the decisions that apply to the changed paths, each resolved;
      - a `## Candidates` section with each candidate's pattern and line;
-     - the plan's Non-goals.
+     - the plan's Non-goals;
+     - in the plan section, the plan's `## Code review` line for this
+       repository (`Declared code review for <repo>: …`, amont-agent 3.11).
 
      For a pointer plan, pass the canonical plan's path. The merge-base is
      the remote's default branch; pass `--base <ref>` for a stacked branch.
@@ -258,8 +260,9 @@ below names one of them.
      `interface-review` with step 2b's inputs added to its brief. Each
      prompt carries, in order: the TREE line verbatim; `Round 1.`; the
      RULES line verbatim; `Profile: <role>` (exactly one, matching the
-     agent: the hook counts nothing else); the brief, or its path with
-     "read it in full"; "Read the plan and the diff. Open at most 10 more
+     agent: the hook counts nothing else); the brief's path with "read it
+     in full", never the brief inline (it carries its own `Profile:` line,
+     and a prompt with two counts for nothing); "Read the plan and the diff. Open at most 10 more
      files or 1,500 lines. Follow your output contract." The push hook
      refuses a push that misses a declared profile, naming the agent to
      launch.

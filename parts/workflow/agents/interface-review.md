@@ -1,6 +1,6 @@
 ---
 name: interface-review
-description: Independent interface reviewer of a change before its push, launched by worktree-task F4b step 2b. Follows ~/.claude/skills/interface-review/SKILL.md on the diff in its brief, reports findings only, never edits.
+description: Independent interface reviewer of a change before its push, launched by worktree-task F4b step 2b (advisory), or by step 2c as the declared `ui-design` code-review profile (gated). Follows ~/.claude/skills/interface-review/SKILL.md on the diff in its brief, reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
 model: opus
 ---

@@ -15,8 +15,9 @@ Your prompt carries, in order: the review block
 (`<<<TREE repo=<name> sha=<64 hex>>>>`, the tree you read, which the push
 hook checks), `Round 1.` or `Delta.`, the `<<<RULES sha=…>>>` line (absent
 in a repository with no decided code rules), a `Profile: unix` line,
-and the brief `amont-agent review-brief --profile unix` built, inline or
-as a path to read in full. Read the plan the brief names first, then the
+and the brief `amont-agent review-brief --profile unix` built, as a path
+to read in full (never inline: the brief has its own `Profile:` line, and
+a prompt with two counts for nothing). Read the plan the brief names first, then the
 diff (or the changed files, when the diff was too large to inline). Open at
 most 10 more files or 1,500 lines. Ask `LSP` (`findReferences`,
 `incomingCalls`, `goToImplementation`) before grepping for who uses a
