@@ -385,6 +385,16 @@ below names one of them.
      Its JSON prints `question_prefix` (`[preview <id>] <label>`): the
      question in step 6 starts with it, verbatim. A register that did not
      bind says so right after it runs; run the command it prints.
+     When it prints `"unchanged": true`, the guide's one before/after pair
+     is byte-identical, and the hook approves the preview when it binds
+     it, if the files still match. Skip steps 5 and 6, put the guide and
+     both screenshots in the PR body, and push as in F6; say so in one
+     line. If the push is still held, or the hook journals
+     `unchanged-skipped`, run steps 5 to 7 as usual. This holds only for
+     the real pair of step 2: `before` from the base build (not an earlier
+     step's shot), `after` from this commit, at the same route and state.
+     Never copy one shot onto the other; every `unchanged` approval is
+     journalled and audited.
   5. **Open the app for them in their default browser**: `open '<url>'`
      (macOS opener), with the URL deep-linked to the state step 1 of "Try
      it" reaches where a route or query can carry it. Never open the
