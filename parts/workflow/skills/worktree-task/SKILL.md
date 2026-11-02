@@ -118,7 +118,9 @@ The approved plan is the branch's FIRST commit, before any code.
    [plan-template.md](plan-template.md): `status: active`, `branch`, `repos`,
    `adrs`. When this repo is not the plan's home (the repo owning its
    decision), write a **pointer file** of the same name instead
-   (`canonical:`, `phases:`, `status:` for this slice).
+   (`canonical:`, `phases:`, `status:` for this slice), and copy this
+   repository's line from the canonical plan's `## Code review` section
+   into the pointer's own `## Code review` section, verbatim.
 4. **Check its review**, before writing it:
    - **No `## Review panel` heading** (a plan from before amont-agent
      2.22.0, or one the person had skipped): land it as it is, with a
