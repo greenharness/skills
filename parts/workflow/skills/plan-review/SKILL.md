@@ -210,6 +210,12 @@ backend stale.
    - the diff of the plan since round 1;
    - "answer resolved / not resolved / new blocker for each".
 
+A round-1 reviewer may be resumed with `SendMessage` instead of a fresh
+launch. The hook counts the resumed round once the message STARTS with the
+new `<<<PLAN path=… sha=…>>>` block and the agent's reply has completed
+(amont-agent ≥ 3.16.1). A message without the block binds nothing, so the
+reviewer stays stale.
+
 After round 2, only a `high` or blocking finding may change the body. A
 `medium` or `low` one gets no edit: it goes in step 7's review section, as
 `carried into implementation`, and the landed plan keeps it beside the
@@ -311,6 +317,10 @@ After ExitPlanMode is rejected with feedback:
    - the person's words, quoted;
    - the diff;
    - "check how the change is made, not whether".
+
+   A reviewer from the same session may be resumed with `SendMessage`
+   instead: the message starts with the fresh block and carries the same
+   items; it counts once the reply completes (amont-agent ≥ 3.16.1).
 4. A `rework` from them becomes a 👉 decision, never a re-run.
 5. Update the review section, then call ExitPlanMode.
 
