@@ -399,7 +399,7 @@ below names one of them.
      '<url>'`, alone in its command (the machine's opener,
      `amont.agent.opener`; `work.page-shown-before-asked`), with the URL
      deep-linked to the state step 1 of "Try it" reaches where a route or
-     query can carry it. The question in step 6 names this URL, and the
+     query can carry it. When the question in step 6 names this URL, the
      `ask-unopened-page` hook refuses it until this open ran. Never open the
      person's page with chrome-devtools MCP, Playwright or any headless or
      automation Chrome: that window is the agent's, it lives in a separate
