@@ -332,12 +332,14 @@ below names one of them.
     hook alone writes a pass file, and refuses a Write, Edit or Bash there.
 - **F5.** If the SHA to push differs from the verified tree in more than
   the plan commit, return to F2.
-- **F6. Non-UI push.** `amont rehearse --wait` where amont is installed,
-  then land the branch: `amont land --json`, alone in its command (or
-  after one `cd <worktree> &&`), in the foreground. Exit 0 is the proof:
+- **F6. Non-UI push.** Land the branch: `amont land --json`, alone in its
+  command (or after one `cd <worktree> &&`), in the foreground. From amont
+  2.0 it runs every push gate the push owes before git connects, then
+  pushes; below 2.0, run `amont rehearse --wait` first. Exit 0 is the proof:
   the remote branch is the sha it pushed. Exit 4 means the remote accepted
   the push but shows another sha: read `remote_after` before anything else.
-  1 is refused. 3 is unreachable (nothing pushed) or unverified (the push
+  1 is refused (a gate failed before the push, or the push was refused;
+  nothing was pushed). 3 is unreachable (nothing pushed) or unverified (the push
   was accepted but could not be read back): run the `git ls-remote` that
   land prints before landing again. The push guards judge a land as they
   judge a `git push`, but only in that shape; any other shape is held
