@@ -13,6 +13,10 @@ This repository carries Phase 3. worktree-task F7 step 5 opens the app through `
 
 - greenharness-skills: none — one line in a skill's markdown
 
+## Implementation review
+
+- implementation-review: round 1 approve-with-changes, 1 fixed (the hook sentence is conditional on step 6 naming the URL); Phase 3 is ticked in the canonical plan with the merge and release. Delta approve. 32k+33k.
+
 ## Verification
 
 Rows are in the canonical plan; results are recorded here.
