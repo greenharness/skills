@@ -395,9 +395,12 @@ below names one of them.
      step's shot), `after` from this commit, at the same route and state.
      Never copy one shot onto the other; every `unchanged` approval is
      journalled and audited.
-  5. **Open the app for them in their default browser**: `open '<url>'`
-     (macOS opener), with the URL deep-linked to the state step 1 of "Try
-     it" reaches where a route or query can carry it. Never open the
+  5. **Open the app for them in their own browser**: `amont-agent open
+     '<url>'`, alone in its command (the machine's opener,
+     `amont.agent.opener`; `work.page-shown-before-asked`), with the URL
+     deep-linked to the state step 1 of "Try it" reaches where a route or
+     query can carry it. The question in step 6 names this URL, and the
+     `ask-unopened-page` hook refuses it until this open ran. Never open the
      person's page with chrome-devtools MCP, Playwright or any headless or
      automation Chrome: that window is the agent's, it lives in a separate
      profile and the person does not see it, or sees it as a stray window.
