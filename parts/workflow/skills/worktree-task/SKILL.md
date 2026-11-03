@@ -397,7 +397,7 @@ below names one of them.
      journalled and audited.
   5. **Open the app for them in their own browser**: `amont-agent open
      '<url>'`, alone in its command (the machine's opener,
-     `amont.agent.opener`; `work.page-shown-before-asked`), with the URL
+     `amont.agent.opener`), with the URL
      deep-linked to the state step 1 of "Try it" reaches where a route or
      query can carry it. When the question in step 6 names this URL, the
      `ask-unopened-page` hook refuses it until this open ran. Never open the
