@@ -2,7 +2,7 @@
 name: code-review-tui
 description: TUI expert code-review profile, launched at worktree-task F4b beside implementation-review when a plan's `## Code review` section declares `tui`. Reads the committed diff through that expertise; reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
-model: opus
+model: inherit
 ---
 Catches: a command line whose output a person cannot read at a glance, or whose messages leave them not knowing what to do next.
 

@@ -99,7 +99,9 @@ go, about 40–80k per reviewer.
    amont-agent plan-sha --block [--lang rust] <plan.md>
    ```
 
-3. Launch **all** the agents in ONE message, in parallel. Each prompt
+3. Launch **all** the agents in ONE message, in parallel, each with
+   `model: "opus"` on the call (the agents inherit by default; see
+   `agent-model-fallback`). Each prompt
    carries, in this order:
    - the review block line, verbatim;
    - `Round 1.`;
@@ -111,8 +113,13 @@ go, about 40–80k per reviewer.
    `k/N returned: <role> <verdict> (<tokens>, <seconds>)`, for example
    `2/4 returned: lang:rust approve-with-changes (35k, 45 s)`.
 
-A launch that fails is relaunched once. If it fails again, it becomes a 👉
-decision for the person, and is never silently dropped.
+A launch that fails follows the `agent-model-fallback` skill: when the
+failure is model unavailability, relaunch the same agent once with no
+`model` on the call; once a model is seen cooling down, launch its later
+seats on the fallback at once. Any other failure is relaunched once as it
+was. A launch that fails again becomes a 👉 decision for the person, and is
+never silently dropped. In the review section, name each seat that ran on
+the fallback.
 
 ## 4. Merge
 
@@ -178,6 +185,8 @@ edits cost more of the session's context than the four reviews they applied.
     the findings on stdin as the last command and return its output only.
     `sonnet` is a preference, not a pin: relais's router keeps it when
     routing is off or abstains, and overrides it when its table decides.
+    If the call fails because `sonnet` is unavailable, follow
+    `agent-model-fallback`: one relaunch with no `model`.
   After the subagent, record what it did (it finds the launch by the
   `<<<APPLY` block, so this is the subagent path only):
 

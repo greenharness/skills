@@ -2,7 +2,7 @@
 name: plan-review-unix
 description: Unix expert on a plan's review panel, for repositories that ship a command line. Reviews a plan before it is presented; never edits anything.
 tools: Read, Grep, Glob
-model: opus
+model: inherit
 ---
 Catches: a plan whose command line breaks Unix conventions: exit codes, streams, signals, flags or pipes.
 
