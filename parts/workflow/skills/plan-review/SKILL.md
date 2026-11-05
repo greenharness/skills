@@ -63,6 +63,13 @@ the panel's backend reviewer checks it. The section is in the body, not the
 front matter, so the panel's sha binds it. A plan without it keeps a single
 implementation review.
 
+## Models
+
+Every panel launch carries `model: "opus"` on the `Agent` call: round 1,
+round 2, the step 8 delta and every backend re-run. The agents inherit the
+root model by default, so the call is what keeps the preference. A launch
+that fails on model availability follows the `agent-model-fallback` skill.
+
 ## 1. What to run
 
 ```sh
@@ -99,9 +106,7 @@ go, about 40–80k per reviewer.
    amont-agent plan-sha --block [--lang rust] <plan.md>
    ```
 
-3. Launch **all** the agents in ONE message, in parallel, each with
-   `model: "opus"` on the call (the agents inherit by default; see
-   `agent-model-fallback`). Each prompt
+3. Launch **all** the agents in ONE message, in parallel. Each prompt
    carries, in this order:
    - the review block line, verbatim;
    - `Round 1.`;
@@ -186,7 +191,10 @@ edits cost more of the session's context than the four reviews they applied.
     `sonnet` is a preference, not a pin: relais's router keeps it when
     routing is off or abstains, and overrides it when its table decides.
     If the call fails because `sonnet` is unavailable, follow
-    `agent-model-fallback`: one relaunch with no `model`.
+    `agent-model-fallback`: one relaunch with no `model`, and only when
+    `amont-agent plan-sha --short <plan>` still prints the sha it printed
+    before the launch. A changed plan means edits landed: do not relaunch
+    (it would apply them twice); make it a 👉 decision.
   After the subagent, record what it did (it finds the launch by the
   `<<<APPLY` block, so this is the subagent path only):
 
