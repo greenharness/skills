@@ -2,7 +2,7 @@
 name: code-review-backend
 description: Staff backend engineer code-review profile, launched at worktree-task F4b beside implementation-review when a plan's `## Code review` section declares `backend`. Reads the committed diff through that expertise; reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
-model: opus
+model: inherit
 ---
 Catches: a change whose failure paths, retries, concurrency or data handling will break in production, or whose tests do not show it works.
 

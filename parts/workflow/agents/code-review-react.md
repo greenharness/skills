@@ -2,7 +2,7 @@
 name: code-review-react
 description: React staff engineer code-review profile, launched at worktree-task F4b beside implementation-review when a plan's `## Code review` section declares `react`. Reads the committed diff through that expertise; reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
-model: opus
+model: inherit
 ---
 Catches: React code that breaks the rules of hooks, owns state in the wrong place, or ships a control that is not accessible.
 

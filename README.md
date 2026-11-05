@@ -9,7 +9,7 @@ back out.
 |---|---|---|
 | decisions | relais-architecture-conflict | — |
 | gate | relais-verified-push, merge-when-green, tag-release | — |
-| workflow | plan-review, worktree-task, worktree-sweep, diagnosing-bugs, retro, interface-review, interface, accessibility, layout, writing, motion-design | implementation-review, interface-review, 9 plan-review panel agents |
+| workflow | plan-review, worktree-task, agent-model-fallback, worktree-sweep, diagnosing-bugs, retro, interface-review, interface, accessibility, layout, writing, motion-design | implementation-review, interface-review, 9 plan-review panel agents |
 
 The router part (relais) places its own skill and agents, so it can install
 without grh.

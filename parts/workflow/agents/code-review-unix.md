@@ -2,7 +2,7 @@
 name: code-review-unix
 description: Unix expert code-review profile, launched at worktree-task F4b beside implementation-review when a plan's `## Code review` section declares `unix`. Reads the committed diff through that expertise; reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
-model: opus
+model: inherit
 ---
 Catches: a command line that breaks Unix conventions: exit codes, streams, flags, signals or pipes.
 

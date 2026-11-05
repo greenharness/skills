@@ -270,6 +270,10 @@ below names one of them.
      files or 1,500 lines. Follow your output contract." The push hook
      refuses a push that misses a declared profile, naming the agent to
      launch.
+     Every review launch in steps 2b, 2c and 3 carries `model: "opus"`. When
+     one fails because that model is unavailable, follow `agent-model-fallback`:
+     relaunch the same agent once with no `model`, with the same prompt, TREE
+     line and `Profile:` line. Record `opus → root` on its line in step 5.
   3. Launch the `implementation-review` agent once, in the foreground,
      with, in order: the TREE line verbatim; `Round 1.`; the RULES line
      verbatim (the push check journals a review whose prompt lacks it, or

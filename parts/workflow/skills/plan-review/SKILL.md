@@ -63,6 +63,13 @@ the panel's backend reviewer checks it. The section is in the body, not the
 front matter, so the panel's sha binds it. A plan without it keeps a single
 implementation review.
 
+## Models
+
+Every panel launch carries `model: "opus"` on the `Agent` call: round 1,
+round 2, the step 8 delta and every backend re-run. The agents inherit the
+root model by default, so the call is what keeps the preference. A launch
+that fails on model availability follows the `agent-model-fallback` skill.
+
 ## 1. What to run
 
 ```sh
@@ -111,8 +118,13 @@ go, about 40–80k per reviewer.
    `k/N returned: <role> <verdict> (<tokens>, <seconds>)`, for example
    `2/4 returned: lang:rust approve-with-changes (35k, 45 s)`.
 
-A launch that fails is relaunched once. If it fails again, it becomes a 👉
-decision for the person, and is never silently dropped.
+A launch that fails follows the `agent-model-fallback` skill: when the
+failure is model unavailability, relaunch the same agent once with no
+`model` on the call; once a model is seen cooling down, launch its later
+seats on the fallback at once. A failure the policy excludes is not
+relaunched; any other failure is relaunched once as it was. A launch that fails again becomes a 👉 decision for the person, and is
+never silently dropped. In the review section, name each seat that ran on
+the fallback.
 
 ## 4. Merge
 
@@ -178,6 +190,11 @@ edits cost more of the session's context than the four reviews they applied.
     the findings on stdin as the last command and return its output only.
     `sonnet` is a preference, not a pin: relais's router keeps it when
     routing is off or abstains, and overrides it when its table decides.
+    If the call fails because `sonnet` is unavailable, follow
+    `agent-model-fallback`: one relaunch with no `model`, and only when
+    `amont-agent plan-sha --short <plan>` still prints the sha it printed
+    before the launch. A changed plan means edits landed: do not relaunch
+    (it would apply them twice); make it a 👉 decision.
   After the subagent, record what it did (it finds the launch by the
   `<<<APPLY` block, so this is the subagent path only):
 
