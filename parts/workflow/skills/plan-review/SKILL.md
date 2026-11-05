@@ -121,8 +121,8 @@ go, about 40–80k per reviewer.
 A launch that fails follows the `agent-model-fallback` skill: when the
 failure is model unavailability, relaunch the same agent once with no
 `model` on the call; once a model is seen cooling down, launch its later
-seats on the fallback at once. Any other failure is relaunched once as it
-was. A launch that fails again becomes a 👉 decision for the person, and is
+seats on the fallback at once. A failure the policy excludes is not
+relaunched; any other failure is relaunched once as it was. A launch that fails again becomes a 👉 decision for the person, and is
 never silently dropped. In the review section, name each seat that ran on
 the fallback.
 

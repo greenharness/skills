@@ -17,10 +17,16 @@ what it knows (`--used`) and keeps the set of models seen cooling down.
 Exit status: 0 for `fallback` (and for `classify`), 1 for `report`, 2 for a
 usage error or a crash.
 """
+from __future__ import annotations
+
 import argparse
 import re
 import sys
 from collections.abc import Sequence
+from typing import Literal
+
+Kind = Literal["cooldown", "unavailable", "excluded", "ambiguous"]
+Verdict = Literal["fallback", "report"]
 
 # A status code counts only beside a status marker, never as a bare number
 # (`file.py:429` is not an HTTP status).
@@ -54,7 +60,7 @@ UNAVAILABLE = re.compile(
 )
 
 
-def classify(error: str) -> str:
+def classify(error: str) -> Kind:
     """`excluded` beats the rest; anything unmatched is `ambiguous`."""
     if EXCLUDED.search(error):
         return "excluded"
@@ -65,7 +71,7 @@ def classify(error: str) -> str:
     return "ambiguous"
 
 
-def decide(failed: str, root: str, error: str, used: int) -> tuple[str, str]:
+def decide(failed: str, root: str, error: str, used: int) -> tuple[Verdict, str]:
     """Return (`fallback` | `report`, reason).
 
     `used` is the fallback launches already made for this task, including a
@@ -84,9 +90,9 @@ def decide(failed: str, root: str, error: str, used: int) -> tuple[str, str]:
     return "fallback", f"{failed} unavailable: relaunch the same agent with no model override{note}"
 
 
-def read_error() -> str:
+def read_error(parser: argparse.ArgumentParser) -> str:
     if sys.stdin.isatty():
-        raise SystemExit("fallback.py: the error text comes on stdin (use a quoted heredoc)")
+        parser.error("the error text comes on stdin (use a quoted heredoc)")
     return sys.stdin.buffer.read().decode(errors="replace")
 
 
@@ -97,9 +103,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     decide_cmd = sub.add_parser("decide")
     decide_cmd.add_argument("--failed", required=True)
     decide_cmd.add_argument("--root", default="")
-    decide_cmd.add_argument("--used", type=int, default=0)
+    decide_cmd.add_argument("--used", type=int, choices=(0, 1), default=0)
     args = parser.parse_args(argv)
-    error = read_error()
+    error = read_error(parser)
     if args.cmd == "classify":
         print(classify(error))
         return 0
@@ -111,11 +117,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except SystemExit as stop:
-        # A message string (not a code) from read_error is a usage error.
-        if isinstance(stop.code, str):
-            print(stop.code, file=sys.stderr)
-            sys.exit(2)
+    except SystemExit:
         raise
     except Exception as exc:  # a crash must not read as a deliberate `report`
         print(f"fallback.py: {exc!r}", file=sys.stderr)
