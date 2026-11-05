@@ -41,22 +41,21 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    Compare against the pre-commit SHA. If the commit-msg hook rejected the commit (common failure modes in this user's repos: subject >50 chars, gitmoji-prefix eating the character budget, `--no-verify` needed for a Helm-template false-positive), HEAD will NOT have moved. **STOP here if it didn't** — surface the hook's rejection reason, fix the commit message/content, and retry step 1. Do not proceed to tagging on an unchanged HEAD.
 
 3. **Only once HEAD has confirmed-advanced, tag, then push — as two separate commands.**
-   From amont 2.0 (`amont --version`), a tag push whose push gates have not
-   run on the tagged tree is refused before anything runs (`push gate(s)
-   have not run on`). A release tag often points at a merge commit nobody
-   tested on this machine, so stamp it first, in a worktree of that commit
-   (skip this where amont is absent or older):
+   From amont 2.0 (`amont --version`), push the tag with `amont land`: it runs
+   the push gates and the release audits on a snapshot of the tagged commit
+   before git connects, pushes the tag, and reads it back. A bare tag push
+   whose gates have not run is refused there (`push gate(s) have not run on`).
    ```bash
-   git worktree add --detach ../stamp-v<version> <sha>
+   git tag v<version> <sha>        # one command
    ```
    ```bash
-   (cd ../stamp-v<version> && amont run --stamp)
+   amont land --tag v<version>     # the next command (amont 2.0 or later)
    ```
-   ```bash
-   git worktree remove ../stamp-v<version>
-   ```
-   A gate that fails there is the release being tested: fix it before
-   tagging. Then:
+   Exit 0 is the proof the tag is on the remote; 1 is a gate or audit that
+   refused the release (nothing was pushed: fix it, then land again — a
+   failed tag was never pushed, so it is not moved).
+
+   **Below amont 2.0, or without amont**, push the tag instead with:
    ```bash
    git tag v<version> <sha>        # one command
    ```
