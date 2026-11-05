@@ -60,14 +60,21 @@ No LiteLLM/llama.cpp/KV/cache/deadline changes, Qwen profile installation, secre
 Python covers regression tests and Unix covers launch/environment semantics. Other implementation profiles are omitted because this prerequisite changes guidance and its focused tests, not a service, interface or new language implementation.
 
 ## Verification
-- Preferred model succeeds → one named-agent invocation, no fallback.
-- Preference is explicitly unavailable/cooling down → one fallback with the identical agent type/prompt/bindings and no `model` override; observed effective model equals a custom root model, not another Claude alias.
-- A still-pinned agent definition → regression fails, proving omission alone is not accepted as inheritance.
-- Shared explicit cooldown → later affected seats avoid a redundant preferred-model call; unrelated models/providers are not suppressed; a new invocation can try the preference again.
-- Root equals failed model, root fails, policy denies fallback, or error is excluded → bounded failure, no retry loop, fake pass, provider escalation or repeated side effect.
-- Real CLI/named-agent fixture → confirm inherited effective model and retained role/sha/profile in captured metadata. Deterministic contract tests cover decision cases; string assertions alone do not prove runtime fallback.
-- Run `scripts/check.sh`, `python3 -m unittest discover -s tests -v`, applicable compile/syntax checks and the repository's discovered gates. Check explicit CI conclusions and remote merged SHA.
-- Managed installation → source/installed agent definitions match, original customizations remain intact, and a real bound review completes on inherited fallback. Restore the previous managed guidance if installation verification fails.
+Observed on branch `fix/agent-model-fallback` (62 tests, `scripts/check.sh` clean; helper also run under system Python 3.9.6).
+- Preferred model succeeds → no fallback call exists; `decide` is only run on a failure. Observed: launchers carry `model: "opus"` (tests).
+- Preference unavailable/cooldown → `decide` exits 0 `fallback`, relaunch with no `model`. Observed: `Decide`, `Cli` tests. Effective custom root model: **deferred**, `holds-until:` first real fallback review after the managed install.
+- Still-pinned definition → `pinned_models` helper; `test_no_agent_pins_a_model` covers all 18 agents. Observed.
+- Shared cooldown → only `classify` = `cooldown` asks the launcher to note the model; other models and new invocations are unaffected because the helper keeps no state. Observed: `test_only_a_cooldown_asks_to_note_the_model`.
+- Root equals failed, `--used 1`, excluded or ambiguous error → exit 1 `report`. Observed: `Decide`, `Cli`.
+- Real CLI/named-agent fixture → **not run**; `holds-until:` the first real fallback review after install.
+- Repository checks → `scripts/check.sh` exit 0 (25 checks); `python3 -I -m unittest discover -s tests`: Ran 62 tests, OK. CI conclusion and remote merged SHA: **pending**, next phase (land).
+- Managed installation → **pending**, next phase (release, install, one real failed-preference → root-fallback review).
+
+## Implementation review
+- implementation-review: approve-with-changes; 4 round-1 findings fixed, delta ruled the print candidates fine; the unrun runtime fixture is named above (deferred); about 50k tokens.
+- backend: approve-with-changes; plan-apply relaunch guard and `--used` bounds fixed; delta found step 3 wording, fixed.
+- lang:python: approve-with-changes; pure `decide`, typed Literals, shared helper; low items fixed.
+- unix: approve-with-changes; heredoc examples, exit codes, Python 3.9 import crash fixed.
 
 ## Deferred Qwen work
 The original serving investigation and draft remain recorded in this session. After this prerequisite, restore that draft as its own plan: two fixed 200K total-context slots with measured FP16 KV/memory headroom; whole-stream shared admission; bounded FIFO/deadlines and no nested retries; source-managed client controls; measured warm-prefix TTFT; security-preserving GitOps rollout. No part of that serving work is approved by this prerequisite plan.
