@@ -312,7 +312,7 @@ below names one of them.
      message) instead of a fresh launch: the hook counts a resumed round on
      its new tree (amont-agent ≥ 2.30). Prefer a **fresh, small** launch
      per seat with `amont-agent review-brief --interdiff <head>
-     [--profile <role>]` (amont-agent ≥ 3.19; the stale line names
+     [--profile <role>]` (amont-agent ≥ 3.20; the stale line names
      `<head>`): the headers plus only what changed, instead of resuming a
      50-80k-token context. Never assert in prose that something is
      unchanged; the interdiff shows it. When it refuses (rules changed,
