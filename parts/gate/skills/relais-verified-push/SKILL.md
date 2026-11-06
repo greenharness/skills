@@ -27,7 +27,8 @@ these four steps in order, from the repository the branch lives in.
 
    A bare `git push` that printed `push gate(s) have not run on` was
    refused by amont 2.0 before anything ran: land with step 3 instead, or
-   run `amont rehearse --wait` and push again.
+   follow the remedy the refusal itself prints (it names `amont land`, and
+   offers `amont rehearse --wait` only where stamps can count).
 
 3. Land the branch, bare, alone in its command, in the foreground:
 
@@ -44,6 +45,15 @@ these four steps in order, from the repository the branch lives in.
    ```sh
    git push
    ```
+
+   With amont 2.0 or later and no amont-agent new enough to read a land,
+   stamp the tree first, as its own command, or that bare push is refused:
+
+   ```sh
+   amont rehearse --wait
+   ```
+
+   Then `git push`, as above.
 
    Never pipe `amont land` or `git push` into `tail`, `head` or `grep`. A
    pipeline's exit status is the LAST command's, so the trimming command

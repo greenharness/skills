@@ -1,6 +1,6 @@
 ---
 name: tag-release
-description: Cut a version tag that drives a CI build/publish (npm, ghcr image, etc.) safely — commit, verify HEAD actually advanced, only then tag, then verify the published artifact. Use when the person asks for a release, AND without asking when an approved plan needs one — a later phase deploys the released artifact, or the release is the plan's outcome.
+description: Cut a version tag that drives a CI build/publish (npm, ghcr image, etc.) safely — commit, verify HEAD actually advanced, only then tag, then verify the published artifact. Use when the person asks for a release, AND without asking when an approved plan needs one — a later phase deploys the released artifact, or the release is the plan's outcome. Also use when a tag push was refused with "push gate(s) have not run on".
 ---
 
 # tag-release
@@ -51,9 +51,18 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    ```bash
    amont land --tag v<version>     # the next command (amont 2.0 or later)
    ```
-   Exit 0 is the proof the tag is on the remote; 1 is a gate or audit that
-   refused the release (nothing was pushed: fix it, then land again — a
-   failed tag was never pushed, so it is not moved).
+   Exit 0 is the proof the tag is on the remote. 1 is refused, with nothing
+   pushed: a gate or audit refused the release (fix it, then land again — a
+   failed tag was never pushed, so it is not moved), or the tag already
+   exists on the remote (a tag is never moved: release the next version).
+   3 is unreachable (nothing pushed) or unverified (the push was accepted but
+   could not be read back), and 4 means the remote shows another sha: in
+   both cases run the `git ls-remote` that land prints before anything else.
+   On amont 2.0 a `v*` tag always goes through `amont land --tag`: only it
+   runs the release audits on the tagged commit, so a bare tag push is
+   refused whatever was stamped before. Where an amont-agent older than
+   2.41 holds the land, upgrade amont-agent; with no amont-agent there is no
+   guard, and the land runs as written.
 
    **Below amont 2.0, or without amont**, push the tag instead with:
    ```bash
