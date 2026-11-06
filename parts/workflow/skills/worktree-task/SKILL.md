@@ -310,13 +310,21 @@ below names one of them.
      "answer resolved / not resolved / new blocker for each". The Delta may
      resume the same reviewer with `SendMessage` (the block first in the
      message) instead of a fresh launch: the hook counts a resumed round on
-     its new tree (amont-agent ≥ 2.30). Among the step 2c profiles, one
+     its new tree (amont-agent ≥ 2.30). Prefer a **fresh, small** launch
+     per seat with `amont-agent review-brief --interdiff <head>
+     [--profile <role>]` (amont-agent ≥ 3.20; the stale line names
+     `<head>`): the headers plus only what changed, instead of resuming a
+     50-80k-token context. Never assert in prose that something is
+     unchanged; the interdiff shows it. When it refuses (rules changed,
+     60 KB or more), build the full brief. Among the step 2c profiles, one
      that said `rework` or `approve-with-changes` re-runs as a Delta too;
      one that said `approve` keeps its pass when the hook can carry it: the
      same landed plan and `## Code review` line, its reviewed commit an
      ancestor of the pushed one after the merge-base, and
      implementation-review passed the new tree. A rebase carries nothing by
-     ancestry, so its profiles re-run unless the branch patch is unchanged.
+     ancestry, so its profiles re-run unless the branch patch is unchanged
+     or only the root `CHANGELOG.md`'s context moved (amont-agent ≥ 3.18,
+     journalled `reviewed-by-patch-notes-moved`): then no delta is due.
      A resumed profile round may omit its `Profile:` line; it keeps its
      launch's. There is no
      third pass: a `rework` that survives the Delta goes to the person with
