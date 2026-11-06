@@ -1,6 +1,6 @@
 ---
 name: relais-verified-push
-description: Verify a push actually left before trusting it — gate status, amont land (which runs the push gates before git connects), then confirm the remote ref moved. Also use when a git push was refused with "push gate(s) have not run on".
+description: Verify a push actually left before trusting it — gate status, amont land (which runs the push gates before git connects), then confirm the remote ref moved. Also use when a git push was refused with "push refused: … have not run on".
 ---
 
 # /relais-verified-push
@@ -25,7 +25,7 @@ these four steps in order, from the repository the branch lives in.
      tree, so the push itself is fast.
    - **no amont:** skip this step.
 
-   A bare `git push` that printed `push gate(s) have not run on` was
+   A bare `git push` that printed `push refused: … have not run on` was
    refused by amont 2.0 before anything ran: land with step 3 instead, or
    follow the remedy the refusal itself prints (it names `amont land`, and
    offers `amont rehearse --wait` only where stamps can count).
@@ -40,20 +40,17 @@ these four steps in order, from the repository the branch lives in.
    a land as they judge a `git push`, in that shape only; any other shape
    is held under deny. Where amont or amont-agent is missing, or
    `amont --version` is below 1.54 or `amont-agent --version` below 2.41
-   (the guards would not see the land), push instead, bare:
+   (the guards would not see the land), push instead, bare. With amont 2.0
+   or later there, stamp the tree first, as its own command, or that bare
+   push is refused:
+
+   ```sh
+   amont rehearse --wait   # amont 2.0 or later only
+   ```
 
    ```sh
    git push
    ```
-
-   With amont 2.0 or later and no amont-agent new enough to read a land,
-   stamp the tree first, as its own command, or that bare push is refused:
-
-   ```sh
-   amont rehearse --wait
-   ```
-
-   Then `git push`, as above.
 
    Never pipe `amont land` or `git push` into `tail`, `head` or `grep`. A
    pipeline's exit status is the LAST command's, so the trimming command

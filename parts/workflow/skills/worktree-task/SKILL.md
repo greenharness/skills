@@ -348,7 +348,7 @@ below names one of them.
   see the land), push as before: `git push -u origin <branch>` bare,
   confirmed with `git ls-remote origin refs/heads/<branch>`; with amont 2.0
   or later there, run `amont rehearse --wait` first, as its own command, or
-  that bare push is refused (`push gate(s) have not run on`). Then open ONE
+  that bare push is refused (`push refused: … have not run on`). Then open ONE
   pull request whose body carries the verification record.
 - **F7. UI push** (the push carries interface changes in a repository with a
   user interface). The person works

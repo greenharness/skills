@@ -1,6 +1,6 @@
 ---
 name: tag-release
-description: Cut a version tag that drives a CI build/publish (npm, ghcr image, etc.) safely — commit, verify HEAD actually advanced, only then tag, then verify the published artifact. Use when the person asks for a release, AND without asking when an approved plan needs one — a later phase deploys the released artifact, or the release is the plan's outcome. Also use when a tag push was refused with "push gate(s) have not run on".
+description: Cut a version tag that drives a CI build/publish (npm, ghcr image, etc.) safely — commit, verify HEAD actually advanced, only then tag, then verify the published artifact. Use when the person asks for a release, AND without asking when an approved plan needs one — a later phase deploys the released artifact, or the release is the plan's outcome. Also use when a tag push was refused with "push refused: … have not run on".
 ---
 
 # tag-release
@@ -44,7 +44,7 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    From amont 2.0 (`amont --version`), push the tag with `amont land`: it runs
    the push gates and the release audits on a snapshot of the tagged commit
    before git connects, pushes the tag, and reads it back. A bare tag push
-   whose gates have not run is refused there (`push gate(s) have not run on`).
+   whose gates have not run is refused there (`push refused: … have not run on`).
    ```bash
    git tag v<version> <sha>        # one command
    ```
@@ -60,7 +60,8 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    both cases run the `git ls-remote` that land prints before anything else.
    On amont 2.0 a `v*` tag always goes through `amont land --tag`: only it
    runs the release audits on the tagged commit, so a bare tag push is
-   refused whatever was stamped before. Where an amont-agent older than
+   refused whatever was stamped before. Unlike a branch, a tag has no bare
+   fallback there. Where an amont-agent older than
    2.41 holds the land, upgrade amont-agent; with no amont-agent there is no
    guard, and the land runs as written.
 
