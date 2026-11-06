@@ -332,19 +332,23 @@ below names one of them.
     hook alone writes a pass file, and refuses a Write, Edit or Bash there.
 - **F5.** If the SHA to push differs from the verified tree in more than
   the plan commit, return to F2.
-- **F6. Non-UI push.** `amont rehearse --wait` where amont is installed,
-  then land the branch: `amont land --json`, alone in its command (or
-  after one `cd <worktree> &&`), in the foreground. Exit 0 is the proof:
+- **F6. Non-UI push.** Land the branch: `amont land --json`, alone in its
+  command (or after one `cd <worktree> &&`), in the foreground. From amont
+  2.0 it runs every push gate the push owes before git connects, then
+  pushes; below 2.0, run `amont rehearse --wait` first. Exit 0 is the proof:
   the remote branch is the sha it pushed. Exit 4 means the remote accepted
   the push but shows another sha: read `remote_after` before anything else.
-  1 is refused. 3 is unreachable (nothing pushed) or unverified (the push
+  1 is refused (a gate failed before the push, or the push was refused;
+  nothing was pushed). 3 is unreachable (nothing pushed) or unverified (the push
   was accepted but could not be read back): run the `git ls-remote` that
   land prints before landing again. The push guards judge a land as they
   judge a `git push`, but only in that shape; any other shape is held
   under deny. Where amont or amont-agent is missing, or `amont --version`
   is below 1.54 or `amont-agent --version` below 2.41 (the guards would not
   see the land), push as before: `git push -u origin <branch>` bare,
-  confirmed with `git ls-remote origin refs/heads/<branch>`. Then open ONE
+  confirmed with `git ls-remote origin refs/heads/<branch>`; with amont 2.0
+  or later there, run `amont rehearse --wait` first, as its own command, or
+  that bare push is refused (`push refused: … have not run on`). Then open ONE
   pull request whose body carries the verification record.
 - **F7. UI push** (the push carries interface changes in a repository with a
   user interface). The person works

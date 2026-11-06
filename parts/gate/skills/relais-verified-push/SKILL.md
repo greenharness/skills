@@ -1,6 +1,6 @@
 ---
 name: relais-verified-push
-description: Verify a push actually left before trusting it — gate status, rehearsal, a bare push, then confirm the remote ref moved.
+description: Verify a push actually left before trusting it — gate status, amont land (which runs the push gates before git connects), then confirm the remote ref moved. Also use when a git push was refused with "push refused: … have not run on".
 ---
 
 # /relais-verified-push
@@ -15,10 +15,20 @@ these four steps in order, from the repository the branch lives in.
    array whose rows carry `id`, `effective_severity` and `status`. Read
    it before assuming the push is clean.
 
-2. Rehearse the push gate on a snapshot of HEAD, ahead of time:
-   `amont rehearse --wait`. This runs the same checks `git push` would
-   run, with no remote connection open, so the push itself is fast and
-   does not hold the remote idle while a suite runs.
+2. Run the push gates before git connects. Which way depends on the
+   amont installed (`amont --version`):
+   - **amont 2.0 or later:** nothing to do here. `amont land` (step 3)
+     runs every gate the push owes on a snapshot of the exact commit,
+     with no remote connection open, before it pushes.
+   - **amont below 2.0:** `amont rehearse --wait`. It runs the same
+     checks `git push` would run, with no connection open, and stamps the
+     tree, so the push itself is fast.
+   - **no amont:** skip this step.
+
+   A bare `git push` that printed `push refused: … have not run on` was
+   refused by amont 2.0 before anything ran: land with step 3 instead, or
+   follow the remedy the refusal itself prints (it names `amont land`, and
+   offers `amont rehearse --wait` only where stamps can count).
 
 3. Land the branch, bare, alone in its command, in the foreground:
 
@@ -30,7 +40,13 @@ these four steps in order, from the repository the branch lives in.
    a land as they judge a `git push`, in that shape only; any other shape
    is held under deny. Where amont or amont-agent is missing, or
    `amont --version` is below 1.54 or `amont-agent --version` below 2.41
-   (the guards would not see the land), push instead, bare:
+   (the guards would not see the land), push instead, bare. With amont 2.0
+   or later there, stamp the tree first, as its own command, or that bare
+   push is refused:
+
+   ```sh
+   amont rehearse --wait   # amont 2.0 or later only
+   ```
 
    ```sh
    git push
@@ -59,5 +75,6 @@ these four steps in order, from the repository the branch lives in.
 - Never trust a `git push` exit code alone; step 4 is the actual
   verification. `amont land` does step 4 itself, which is why its exit
   code can be trusted.
-- A rehearsal failure is the push gate telling you now what `git push`
-  would have refused later — fix it before step 3, not after.
+- A gate failure in land's pre-stage or in a rehearsal is the push gate
+  telling you now what the push would have refused later. Nothing was
+  pushed: fix it and land again.
