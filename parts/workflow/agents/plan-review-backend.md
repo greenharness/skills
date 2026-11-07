@@ -39,7 +39,8 @@ Look for:
 - verification: every Verification entry must be an observable check
   (input → expected → actual). "Tests pass" is not a check;
 - areas the plan creates without declaring them: the brief lists the
-  detected areas (language, ui, ops, cli, large). A plan adding a CLI, an
+  detected areas (language, ui, ops, cli, contract, or `large` on an
+  amont-agent older than 3.22.0). A plan adding a CLI, an
   interface or infrastructure that is not in that list and not in its
   `adds=` is a blocking finding. Name the `adds=` value it needs;
 - what the named files cannot show, on a plan seated from them

@@ -7,8 +7,13 @@ description: Run the expert review panel on a plan before ExitPlanMode, and agai
 
 Every plan is reviewed by a panel of experts **before** the person sees it.
 The panel follows what the plan touches, and amont-agent computes it, never
-from keywords. When every phase of the plan names, in backticks, the files
-it touches, the seats come from those files' types:
+from keywords. With an amont-agent older than 3.22.0
+(`amont-agent --version`), only the area table below holds, and `adds=`
+takes the values it took then: `cli`, `ui`, `ops`, `large`,
+`lang:<language>`.
+
+When every phase of the plan names, in backticks, the files it touches,
+the seats come from those files' types:
 
 | the named files | agents |
 |---|---|
@@ -30,10 +35,6 @@ repositories instead, and `plan-panel` says so on stderr:
 | a command line | `plan-review-unix`, `plan-review-tui` |
 | large (500 or more files or own commits) | `plan-review-po`, `plan-review-architect` |
 | an interface | `plan-review-react`, `plan-review-ui-design`, `plan-review-ux-research`, `plan-review-game-ux` |
-
-With an amont-agent older than 3.22.0 (`amont-agent --version`), the area
-table alone holds, and `adds=` takes the values it took then: `cli`, `ui`,
-`ops`, `large`, `lang:<language>`.
 
 Rounds are bounded: round 1 is the whole panel, round 2 is a delta, and
 there is no round 3. A change the person asks for gets one delta review and
@@ -168,7 +169,8 @@ edits cost more of the session's context than the four reviews they applied.
 - Record the round, BEFORE the plan is edited (it saves the reviewed body
   only while the file still holds it), with one object per finding on
   stdin; `section` is the plan heading it is about, `area` one of
-  cli|ui|screen|ops|contract|lang:<x> when it is clear:
+  cli|ui|screen|ops|contract|lang:<x> (`large` with an amont-agent older
+  than 3.22.0) when it is clear:
 
   ```sh
   echo '[{"role":"tui","severity":"high","disposition":"accepted","section":"Behaviour","area":"cli"}]' \
