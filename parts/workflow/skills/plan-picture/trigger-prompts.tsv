@@ -1,0 +1,9 @@
+p01	should	draw a picture of what this plan builds
+p02	should	sketch the mechanism before we start on the phases
+p03	should	chart a new programme for the billing rewrite and draw its map
+p04	should	can you illustrate this plan so I get it at a glance
+p05	should	make an ascii diagram of the before and after for the plan
+n01	near-miss	draw a bar chart of last week's CI durations
+n02	near-miss	draw the architecture of the whole repository
+n03	near-miss	write the ADR for the new queue design
+n04	near-miss	design the settings screen mockup

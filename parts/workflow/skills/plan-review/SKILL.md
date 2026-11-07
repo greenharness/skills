@@ -67,6 +67,18 @@ adds that do not exist yet:
 The plan also needs a `## Review panel` section directly under the H1. Write
 a placeholder line there now; step 7 fills it.
 
+When `~/.claude/skills/plan-picture/check.py` exists (the `plan-picture`
+skill is installed), the plan needs a `## Picture` section after
+`## Review panel`: follow that skill, then run its checker before seating
+the panel, and fix every finding first:
+
+```sh
+python3 ~/.claude/skills/plan-picture/check.py <plan.md>
+```
+
+Exit 1 is a finding to fix, exit 2 a usage error, never a pass. When the
+file does not exist, skip this: a plan needs no picture.
+
 And a `## Code review` section in the body, after `## Non-goals`: which
 expert profiles review the code at the branch's close (worktree-task F4b),
 beside implementation-review. Propose it with
