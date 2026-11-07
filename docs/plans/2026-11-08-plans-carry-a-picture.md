@@ -80,11 +80,15 @@ raster generation.
 
 ## Verification
 
-- `python3 -m unittest discover -s tests` → all pass, 47 in
-  `test_plan_picture.py` → observed: pass.
+- `python3 -m unittest tests.test_plan_picture` → all pass → observed:
+  "Ran 47 tests … OK"; whole suite `discover -s tests` → "Ran 109 tests … OK".
 - `./scripts/check.sh` → exit 0 → observed: exit 0.
-- `check.py` on the skill's own ASCII example → exit 0 → observed: exit 0
-  (the first draft failed at 82 columns and was narrowed).
+- The skill's ASCII example, copied out of its ````markdown fence into a
+  scratch plan, through `check.py` → exit 0 → observed: exit 0 (the first
+  draft failed at 82 columns and was narrowed).
+- The `none: a version bump only` example in a scratch plan → exit 0 →
+  observed: exit 0.
 - SVG tier on a scratch plan: fresh `--hash` link → exit 0; one line added
   to the SVG → exit 1 "is stale" → observed: both.
-- `check.py` on this plan → exit 0 → observed: see Implementation review.
+- `check.py docs/plans/2026-11-08-plans-carry-a-picture.md` → exit 0 →
+  observed: exit 0, no output.
