@@ -17,6 +17,8 @@ This repository carries Phase 2. The plan template asks each phase to name, in b
 
 - implementation-review: round 1 approve-with-changes, 3 low fixed (`large` named only for an older amont-agent in the backend bullet and the ledger areas; the older-tool case opens the skill), 1 deliberate (Phase 2 is ticked in the canonical plan with the v0.3.9 tag). Delta approve. 40k+23k.
 
+- implementation-review (the `adds=` fix): round 1 approve-with-changes (key the checks on `areas=`, not `seats=paths`, as the fixtures showed; 3 control runs; the older-tool values), all done; delta approve-with-changes, both findings on the canonical plan's text (Behaviour, versions), fixed in its closing commit. 37k+32k.
+
 ## Verification
 
 Rows are in the canonical plan; results are recorded here.
