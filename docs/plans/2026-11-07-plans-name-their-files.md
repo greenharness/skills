@@ -23,3 +23,6 @@ Rows are in the canonical plan; results are recorded here.
 - `./scripts/check.sh` → exit 0, no decision or rule id in `parts/`.
 - `python3 -m unittest discover -s tests` → OK.
 - The skill's `--code-review` line shapes match amont-agent 3.22.0's output on the canonical plan (`decisions\tnone\tno reviewed file type`).
+- The installed backend reviewer on four fixture plans (only an exact `adds=` blocking finding counts):
+  - 0.3.9's text: a crate with no `adds=` → `adds=contract` 1 of 3 (one run named a value that does not exist, `adds=interface`, one asked for `adds=ops`). A settings-screen fixture was void: that screen already exists in the repository, so nothing was added.
+  - The declarations moved to a first step, with the only valid values and the finding's exact wording (v0.3.10): crate, no `adds=` → `adds=contract` 3 of 3; a new Insights screen, no `adds=` → `adds=screen` 3 of 3; the crate with `adds=contract` → no `adds=` finding, 2 of 2; two phases naming no file → a finding asking for their files, 2 of 2.
