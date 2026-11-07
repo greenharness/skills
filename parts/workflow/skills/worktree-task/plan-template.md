@@ -45,9 +45,20 @@ person preview the commit as usual. The `evidence:` line must stay the first
 line under the heading.
 
 ## Phases
-- [ ] Phase 1 — <one line>; becomes one or more commits
+Each phase names, in backticks, every file it touches: the review panel is
+seated from those files' types. A release or docs phase names its files too
+(`CHANGELOG.md`). A phase that names no file brings back the panel of every
+area the repositories have.
+- [ ] Phase 1 — <one line>: `src/<file>.rs`, `docs/<file>.md`; becomes one
+  or more commits
 - [ ] 🧑 decision: <question the person answers, with 2–4 options>
-- [ ] Phase 2 — …
+- [ ] Phase 2 — … `CHANGELOG.md`
+
+What no file shows goes in the machine comment the `plan-review` skill
+adds: `adds=contract` when the plan adds a module, crate or repository, or
+changes a contract another repository consumes (architect and product
+owner); `adds=screen` when the Behaviour adds a screen or a flow (UX
+research and game UX).
 
 ## Decision log
 - YYYY-MM-DD — <decision>, because <reason>. (A scope change is recorded
