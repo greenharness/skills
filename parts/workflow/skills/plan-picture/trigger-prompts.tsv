@@ -4,6 +4,6 @@ p03	should	the programme's end state changed, update its map picture
 p04	should	can you illustrate this plan so I get it at a glance
 p05	should	make an ascii diagram of the before and after for the plan
 n01	near-miss	draw a bar chart of last week's CI durations
-n02	near-miss	fix the typo in the README
-n03	near-miss	review this pull request for bugs
+n02	near-miss	draw the architecture of the whole repository
+n03	near-miss	chart a new programme for the billing rewrite
 n04	near-miss	design the settings screen mockup

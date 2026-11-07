@@ -78,7 +78,11 @@ When the SVG stays:
 
 1. Write it next to the plan, `<plan-file-stem>.svg` (numbered
    `-1.svg`, `-2.svg` when there are several). Never overwrite an existing
-   picture the plan does not own.
+   picture the plan does not own. When the plan lands under a new name
+   (plan mode's file copied into the repository's `docs/plans/`), copy the
+   SVG beside it under the landed stem, fix the link, and commit both in
+   the plan commit. Run the checker on the landed file: a link left
+   pointing at the old place fails it.
 2. Draw it with the `artifact-diagramming` skill's inline-SVG rules when
    that skill is present: text as text, colours that hold in light and dark,
    a `<title>` and `<desc>`. Same anchor, same actor, same labels as step 1.
