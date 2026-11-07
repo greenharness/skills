@@ -92,3 +92,10 @@ raster generation.
   to the SVG → exit 1 "is stale" → observed: both.
 - `check.py docs/plans/2026-11-08-plans-carry-a-picture.md` → exit 0 →
   observed: exit 0, no output.
+
+## Implementation review
+
+- implementation-review: round 1 approve-with-changes, 3 fixed (the plan's own checker row observed, unittest summaries quoted, `RoundTwo` renamed `MarkdownEdges`); 9 candidates fine. 47k, 42 s.
+- implementation-review: delta approve, 3 of 3 resolved, no new finding. 26k, 16 s.
+
+Next: Phase 3, release and grh pin bump.
