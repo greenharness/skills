@@ -212,8 +212,8 @@ class Links(unittest.TestCase):
         self.assertTrue(has(found, "is stale"), found)
 
 
-class RoundTwo(unittest.TestCase):
-    """Findings of the second review round."""
+class MarkdownEdges(unittest.TestCase):
+    """Markdown forms that hid a link, a sentence or a stroke from the checker."""
 
     def suffix(self, extra, files=None):
         return run(GOOD.replace("\n\n## Phases", f"\n{extra}\n\n## Phases"), files)
