@@ -261,7 +261,8 @@ edit touched its slice; then the hook names it, with the span that moved.
    flags each seat's line now ends with (a seat can gain or lose its slice
    with an edit). The sha changed with the edits.
 3. Each prompt carries:
-   - the block;
+   - the block's stdout lines (two with `--slice`), verbatim; never its
+     stderr;
    - `Round 2.`;
    - that reviewer's round-1 findings, and that its patches were applied
      by `plan-apply` where they matched;
@@ -390,11 +391,11 @@ After ExitPlanMode is rejected with feedback:
 
 The refusal names what is missing (`missing for repos=X: <roles>`) or stale
 (`stale (reviewed an older body)`), and, with amont-agent 3.23.0, a seat
-whose slice moved (`stale (its slice changed: Phase 2) for repos=X: <role>;
-re-run: amont-agent plan-sha --block … --slice <role> <plan.md>`, or
-`a new slice` / `now the whole body` when the seat gained or lost its
-slice). Run exactly those, each block with the `re-run:` command as printed,
-then present again.
+bound to its slice that must re-run:
+``stale (its slice changed: Phase 2) for repos=X: <role>; re-run: `amont-agent plan-sha --block … --slice <role> <plan.md>` ``,
+or `its slice changed: the order of its phases`, `it has a new slice`, or
+`it now binds the whole body`. Run exactly those, each block with the
+command between the backticks as printed, then present again.
 After 2 refusals of the same plan, the hook hands the decision to the person
 with `UNREVIEWED: refused N×`, naming the missing reviewers and the body
 each time, so a repeated prompt still says something new. Do not try to
