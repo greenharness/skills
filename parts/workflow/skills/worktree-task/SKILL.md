@@ -147,9 +147,9 @@ The approved plan is the branch's FIRST commit, before any code.
 Skip all of this for a change describable in one sentence: it joins the
 open batch branch with no plan.
 
-**Duro stack, new screen or material UI choice** (`handoff.fresh-directions-trigger`):
-before implementing, run `/duro-mockup` for 2–4 directions (`duro mockup
-check` must pass), let the person pick through options, and commit the
+**New screen or material UI choice, on a stack with a mockup contract** (`handoff.fresh-directions-trigger`):
+before implementing, run the design extension's mockup skill, when one is installed, for 2–4 directions (its
+checks must pass), let the person pick through options, and commit the
 picked artboard on this branch. A fix that restores an existing design
 reuses the picked artboard.
 
@@ -164,7 +164,7 @@ below names one of them.
   the changed behaviour observably, against the plan's Verification section:
   - UI: Claude in Chrome on the local dev server — open the changed route,
     exercise the interaction (click, type, mobile width), read console and
-    network, screenshot; on the Duro stack, beside the picked artboard
+    network, screenshot; where a picked artboard exists, beside it
     (`handoff.prove-fidelity`). Put the two side by side and list every
     difference BEFORE the guide: fix each, or name it
     `deliberate: <reason>`. When accessibility seems to need a design

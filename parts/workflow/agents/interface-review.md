@@ -18,7 +18,7 @@ no hand-typed `--scope`), with the exemption list of
 lines of `git diff -U0`. Read `~/.claude/skills/interface-review/SKILL.md`
 and follow it on that diff, loading the domain skills it names from
 `~/.claude/skills/<x>/`, the repository's `.claude/skills/<x>/` or
-`duro_ds_lookup guide:<x>`. A skill absent by every route is `Not reviewed`,
+the design extension's guides. A skill absent by every route is `Not reviewed`,
 never a failure.
 
 You have no Bash. Skip scope resolution: the brief's scope block is the

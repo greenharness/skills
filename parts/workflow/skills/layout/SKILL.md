@@ -11,7 +11,7 @@ Write every fix in the project's styling system. The numbers below apply only wh
 
 Hit areas and focus behavior belong to `accessibility`. Radius, shadows and animation belong to `ui`. Line length, text spacing and truncation mechanics belong to `typography`. The words themselves belong to `writing`.
 
-A decision of this repository (resolved with `aval resolve <key>`, which answers at the repository's declared `in_scopes`; no hand-typed `--scope`) outranks a value in this skill. Apply token requirements and gap routing only where the repository's decisions require them, keeping their named exemptions. On `duro-stack`, a non-exempt measure without a token is a design-system gap, never a local literal.
+A decision of this repository (resolved with `aval resolve <key>`, which answers at the repository's declared `in_scopes`; no hand-typed `--scope`) outranks a value in this skill. Apply token requirements and gap routing only where the repository's decisions require them, keeping their named exemptions. On a stack whose decisions require tokens, a non-exempt measure without a token is a design-system gap, never a local literal.
 
 ## Group with space, not lines
 
