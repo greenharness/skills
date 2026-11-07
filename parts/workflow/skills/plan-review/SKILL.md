@@ -124,6 +124,14 @@ go, about 40–80k per reviewer.
   key terms>"`, then `aval resolve <key>` on each key it names. Include the
   verdicts, not the ranking.
 - The files the plan names, with line counts (`wc -l`).
+- The design lookup, for a repository with an interface only: when an
+  agent named `design-system-lookup` is installed (its file exists under
+  the agents directory), run it once on the plan before the panel, passing
+  the decisions block above when there is one, and give its output to
+  every seat as a `design-lookup` block. When no such agent is installed,
+  skip this step silently. The slot names an agent contract, never a
+  product; seats read the block as their **Design-system lookup** section
+  says.
 
 ## 3. Round 1: the whole panel
 

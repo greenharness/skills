@@ -11,7 +11,7 @@ Orchestration is all it owns. Accessibility rules belong to `accessibility`, str
 
 Change-scoped review of uncommitted work, branches and pull requests belongs to `interface-review`.
 
-A decision of this repository (resolved with `aval resolve <key>`, which answers at the repository's declared `in_scopes`; no hand-typed `--scope`) outranks a value in this skill. Apply token requirements and gap routing only where the repository's decisions require them, keeping their named exemptions. On `duro-stack`, a non-exempt measure without a token is a design-system gap, never a local literal.
+A decision of this repository (resolved with `aval resolve <key>`, which answers at the repository's declared `in_scopes`; no hand-typed `--scope`) outranks a value in this skill. Apply token requirements and gap routing only where the repository's decisions require them, keeping their named exemptions. On a stack whose decisions require tokens, a non-exempt measure without a token is a design-system gap, never a local literal.
 
 ## Evidence, not taste
 
@@ -56,7 +56,7 @@ Load every owning skill below and complete each domain review before consolidati
 
 From each, take its principles, its references and its verification checks. Its severity ladder and its format are for standalone use; the ones in this file replace them.
 
-Load `colors`, `typography` and `ui` as project skills (`.claude/skills/<name>/`) or else through `duro_ds_lookup guide:<name>` when the `duro-ds` MCP is present. Always load `motion-design`; where `ui` is absent, use it to review action feedback.
+Load `colors`, `typography` and `ui` as project skills (`.claude/skills/<name>/`) or else through the design extension's guides when one is installed. Always load `motion-design`; where `ui` is absent, use it to review action feedback.
 
 If an owning skill is unavailable by every route above, mark that domain `Not reviewed`, name it and continue with the rest. Do not recreate its rules from memory, substitute a neighbour or claim holistic coverage.
 
