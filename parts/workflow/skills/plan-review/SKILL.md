@@ -257,8 +257,9 @@ edit touched its slice; then the hook names it, with the span that moved.
 
 1. Post: `📍 <project>: round 2, re-running <names>, about 2 min.`
    Returns use the same `k/N returned:` line.
-2. Get fresh blocks, with the same `--lang`/`--slice` flags. The sha
-   changed with the edits.
+2. Get fresh blocks: re-run `amont-agent plan-panel <plan.md>` and use the
+   flags each seat's line now ends with (a seat can gain or lose its slice
+   with an edit). The sha changed with the edits.
 3. Each prompt carries:
    - the block;
    - `Round 2.`;
@@ -270,7 +271,8 @@ edit touched its slice; then the hook names it, with the span that moved.
 
 A round-1 reviewer may be resumed with `SendMessage` instead of a fresh
 launch. The hook counts the resumed round once the message STARTS with the
-new `<<<PLAN path=… sha=…>>>` block and the agent's reply has completed
+new `<<<PLAN path=… sha=…>>>` block (for a sliced seat, the block's two
+stdout lines) and the agent's reply has completed
 (amont-agent ≥ 3.16.1). A message without the block binds nothing, so the
 reviewer stays stale.
 
@@ -371,10 +373,11 @@ After ExitPlanMode is rejected with feedback:
    backend plus the reviewers of any area that is new, plus every seat
    bound to a slice that the change touched (amont-agent 3.23.0).
 3. Launch those once. Each prompt carries:
-   - the block;
+   - the block's stdout lines (two with `--slice`);
    - `Delta.`;
    - the person's words, quoted;
-   - the diff;
+   - the diff (for a sliced seat, the part inside its slice is what it
+     answers for);
    - "check how the change is made, not whether".
 
    A reviewer from the same session may be resumed with `SendMessage`
@@ -386,7 +389,12 @@ After ExitPlanMode is rejected with feedback:
 ## If the hook refuses
 
 The refusal names what is missing (`missing for repos=X: <roles>`) or stale
-(`stale (reviewed an older body)`). Run exactly those, then present again.
+(`stale (reviewed an older body)`), and, with amont-agent 3.23.0, a seat
+whose slice moved (`stale (its slice changed: Phase 2) for repos=X: <role>;
+re-run: amont-agent plan-sha --block … --slice <role> <plan.md>`, or
+`a new slice` / `now the whole body` when the seat gained or lost its
+slice). Run exactly those, each block with the `re-run:` command as printed,
+then present again.
 After 2 refusals of the same plan, the hook hands the decision to the person
 with `UNREVIEWED: refused N×`, naming the missing reviewers and the body
 each time, so a repeated prompt still says something new. Do not try to
