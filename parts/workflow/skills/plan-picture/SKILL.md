@@ -16,8 +16,9 @@ mechanism, not a clever image.
 
 ## 1. Pick the anchor
 
-Read the plan's goal and its Behaviour. Name the one shift the picture must
-carry, from this list:
+Read the plan's goal and what it changes (its Behaviour and phases; for a
+programme map, its end state and tickets). Name the one shift the picture
+must carry:
 
 | anchor | when | shape |
 |---|---|---|
@@ -36,8 +37,9 @@ plan it <Y>." That sentence goes under the picture.
 
 ## 2. Draw it in ASCII
 
-Put it in the plan under the title and goal, before the phases, in a
-`## Picture` section:
+Put it in a `## Picture` section placed after the H1 and its
+`## Review panel` section (which plan-review keeps directly under the H1),
+before the phases:
 
 ````markdown
 ## Picture
@@ -55,60 +57,71 @@ The gates move from after the push to before it, so a red tree never
 reaches the remote.
 ````
 
-Rules:
+Rules (the checker in step 4 enforces the ones marked ✓):
 
-- Inside a fenced block with no language tag, at most 76 columns, no tabs.
-- One character set: plain `+ - | \` / > <` or box-drawing `┌ ─ ┐ │ └ ┘ ├ ┤ ▶`,
-  never both in one picture.
+- ✓ One fenced block (backticks or tildes), with no language tag, at
+  most 76 columns, no tabs.
+- ✓ One character set: ASCII strokes (`-- -> | +-`) or box-drawing
+  (`┌ ─ ┐ │ └ ┘ ├ ┤ ▶`), never both in one picture.
+- ✓ A sentence of four words or more after the block, in prose outside
+  the fence. It is what a screen reader gets, and what a reader who skips
+  the art gets.
 - Labels are words from the plan: the same names its phases use. A name
   that only exists in the picture is a sign the picture drew something the
   plan does not build.
 - Few labels. If the picture needs a legend, it does too much.
-- The sentence under it is prose, outside the fence. It is what a screen
-  reader gets, and what a reader who skips the art gets.
 
 ## 3. When it does not fit: an SVG page
 
-Move to an SVG when the picture needs more than about eight boxes or lines
-that cross. First ask whether the plan is too big for one session: a plan
-that needs a big picture often wants to become a programme. Say so to the
-person, rather than only drawing a bigger image.
+The SVG tier is for a picture that needs more than about eight boxes or
+lines that cross. Before drawing one, judge for yourself whether the plan
+is too big for one session: a plan that needs a big picture often wants to
+become a programme. If you think it does, say so in the message that
+presents the plan, after the page is open.
 
-When the SVG stays:
+A programme map starts in this tier: its path to the end state outgrows
+eight boxes as soon as it has a few tickets.
 
-1. Write it next to the plan, `<plan-file-stem>.svg` (numbered
-   `-1.svg`, `-2.svg` when there are several). Never overwrite an existing
-   picture the plan does not own. When the plan lands under a new name
-   (plan mode's file copied into the repository's `docs/plans/`), copy the
-   SVG beside it under the landed stem, fix the link, and commit both in
-   the plan commit. Run the checker on the landed file: a link left
-   pointing at the old place fails it.
+1. Name the SVG `<slug>.svg`, where `<slug>` is the plan's H1 in
+   kebab-case, five words at most: the slug its landed file
+   `docs/plans/<date>-<slug>.md` will carry. Write it next to the plan.
+   The relative link then reads the same in plan mode and once landed, so
+   landing does not change the reviewed body. If a file of that name
+   already exists, stop and pick another slug; never overwrite it.
 2. Draw it with the `artifact-diagramming` skill's inline-SVG rules when
-   that skill is present: text as text, colours that hold in light and dark,
-   a `<title>` and `<desc>`. Same anchor, same actor, same labels as step 1.
+   that skill is present. Without it: text as `<text>`, not paths; a
+   `<title>` and a `<desc>` holding the step 1 sentence; colours through
+   `currentColor` or a `prefers-color-scheme` style, so it holds in light
+   and dark. Same anchor, same actor, same labels as step 1.
 3. The plan's `## Picture` keeps a small ASCII outline (the main path, three
-   to five boxes) and links the SVG:
-   `Full picture: [<stem>.svg](<stem>.svg)`. The plan stays readable in a
-   terminal without opening anything.
+   to five boxes), the sentence, and the link with the file's short hash:
+
+   ```markdown
+   The gates move before the push. Full picture: [gates-before-push.svg](gates-before-push.svg) @3f9a1c2
+   ```
+
+   `python3 <this-skill-dir>/check.py --hash <slug>.svg` prints the hash.
+   The hash puts the SVG under the plan's reviewed body: a redraw changes
+   the hash, so the plan changes and the panel sees it.
 4. Open the page for the person before asking them anything about the plan:
    `amont-agent open '<path-or-url>'`. Without amont-agent, give the
    person the path in the final message and say it was not opened.
 
 An HTML page instead of an SVG only when the picture needs interaction:
 stepping through a programme's phases, a ticket that opens its detail.
+The same naming, hash and opening rules apply.
 
 ## 4. Check it
-
-Run the checker on the plan file:
 
 ```bash
 python3 <this-skill-dir>/check.py <plan.md>
 ```
 
-It fails (exit 1) on: no `## Picture` section, no fenced block in it, a
-line over 76 columns, a tab, ASCII and box-drawing corners mixed, no
-sentence after the block, and a linked `.svg`/`.html` that does not exist.
-Exit 2 is a usage error, never a pass.
+Exit 0: it holds. Exit 1: findings, one per line. Exit 2: usage or an
+unreadable file, never a pass. Beyond the ✓ rules it fails on: no
+`## Picture` section, an empty one, a fence never closed, a second block,
+a linked `.svg`/`.html` that is missing, absolute, outside the plan's
+directory, unhashed or whose hash is stale.
 
 Then read the picture against this list. Redraw when one holds:
 
@@ -122,15 +135,19 @@ Done when the checker exits 0 and none of the list holds.
 
 ## 5. Hand over
 
-The picture is part of the plan: `/plan-review` reviews it with the rest,
-and a reviewer may flag a picture that disagrees with the phases. A
-change the person asks for that changes the mechanism redraws the picture
-in the same delta.
+The picture is part of the plan: `/plan-review` runs the checker before
+seating the panel, and the backend reviewer checks that the picture agrees
+with the phases. A change the person asks for that changes the mechanism
+redraws the picture in the same delta, with its new hash.
+
+When the plan lands, worktree-task copies the SVG beside the landed plan
+under the same name and runs the checker on the landed file.
 
 A programme map has one picture of the path to its end state, redrawn
 when a ticket changes that end state. Tickets get no picture of their own;
 the plan written for a ticket does.
 
 A plan that changes no mechanism (a version bump, a text fix) gets no
-picture: write `## Picture` with one line, `none: <why>`, and the checker
-accepts it.
+picture. Its `## Picture` holds one line, `none: <why>`, with a reason of
+three words or more, and nothing else. The backend reviewer may challenge
+the reason.
