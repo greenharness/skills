@@ -144,8 +144,9 @@ The approved plan is the branch's FIRST commit, before any code.
      matter.
    - **A linked picture** (`.svg` or `.html` in its `## Picture`): copy
      each file from beside the approved source into `docs/plans/` under
-     the same name, refusing if a different file of that name exists. Then
-     `python3 ~/.claude/skills/plan-picture/check.py <landed>` must exit 0.
+     the same name, byte for byte, refusing if a different file of that
+     name exists. Then, when `~/.claude/skills/plan-picture/check.py`
+     exists, it must exit 0 on the landed plan.
 5. **Commit it alone** (with its sidecar): `docs(plan): <slug>`.
 
 Skip all of this for a change describable in one sentence: it joins the

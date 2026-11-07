@@ -24,14 +24,19 @@ MIN_REASON_WORDS = 3
 OPEN_FENCE = re.compile(r"^( {0,3})(`{3,}|~{3,})(.*)$")
 HEADING = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]+(.*?))?(?:[ \t]+#+)?[ \t]*$")
 NONE_LINE = re.compile(r"^\s*none:\s*(.*)$", re.I)
-# ASCII strokes that draw a line, beside box-drawing and geometric shapes.
-ASCII_STROKE = re.compile(r"-{2,}|->|<-|\+[-=]|[-=]\+|\|")
-BOX_CHAR = re.compile("[─-╿■-◿]")
-INLINE_LINK = re.compile(r"\]\(\s*(<[^>]*>|[^)\s]+)(?:\s+(?:\"[^\"]*\"|'[^']*'))?\s*\)")
-REF_DEF = re.compile(r"^ {0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)")
-LINK_TEXT = re.compile(r"!?\[([^\]]*)\]\([^)]*\)|!?\[([^\]]*)\]\[[^\]]*\]")
+# A stroke that draws a line. `--` or `|` inside a word or a flag
+# (`--no-verify`, `a|b`) is a label, not a stroke.
+ASCII_STROKE = re.compile(r"(?<![\w-])-{2,}(?![\w])|->|<-|\+[-=]|[-=]\+|(?<!\w)\|(?!\w)")
+BOX_CHAR = re.compile("[─-╿▲-◁]")
+TITLE = r"(?:\"[^\"]*\"|'[^']*'|\([^)]*\))"
+INLINE_LINK = re.compile(r"\]\(\s*(<[^>]*>|[^)\s]+)(?:\s+" + TITLE + r")?\s*\)")
+REF_USE = re.compile(r"\[([^\]]+)\]\[([^\]]*)\]|\[([^\]]+)\](?![(\[:])")
+REF_DEF = re.compile(r"^ {0,3}\[([^\]]+)\]:\s*(<[^>]*>|\S+)")
+HTML_SRC = re.compile(r"\b(?:src|href)\s*=\s*[\"']([^\"']+)[\"']", re.I)
 HASH_AFTER = re.compile(r"\s*@([0-9a-f]{7})\b")
-SCHEME = re.compile(r"^(?:[a-z][a-z0-9+.-]*:|//)", re.I)
+URL = re.compile(r"^(?:[a-z][a-z0-9+.-]*://|//|data:|mailto:)", re.I)
+ABSOLUTE = re.compile(r"^(?:/|~|[a-z]:[\\/]|\\\\)", re.I)
+NOT_PROSE = re.compile(r"<!--.*?-->|`[^`]*`|!?\[([^\]]*)\]\([^)]*\)", re.S)
 PICTURE_SUFFIX = (".svg", ".html")
 
 
@@ -98,6 +103,29 @@ def picture_section(parsed: list) -> list | None:
     return None
 
 
+def paragraphs(section: list) -> list[Text]:
+    """Consecutive text lines joined, as Markdown renders them.
+
+    An indented code block (a paragraph opening four spaces or a tab deep)
+    is not a paragraph.
+    """
+    out: list[Text] = []
+    current: Text | None = None
+    for b in section:
+        if isinstance(b, Text) and b.text.strip():
+            if current is None:
+                current = Text(b.line, b.text)
+            else:
+                current.text += " " + b.text.strip()
+            continue
+        if current is not None:
+            out.append(current)
+            current = None
+    if current is not None:
+        out.append(current)
+    return [p for p in out if not re.match(r"^(?: {4}|\t)", p.text)]
+
+
 def columns(line: str) -> int:
     """Display width: wide characters take two columns, marks and format none."""
     width = 0
@@ -109,76 +137,113 @@ def columns(line: str) -> int:
 
 
 def short_hash(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:7]
+    """sha256 prefix of the file, with CRLF read as LF so a checkout's line
+    endings do not make it stale."""
+    return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()[:7]
 
 
-def link_targets(text: str) -> list[tuple[str, str | None]]:
-    """(target, the @hash written right after the link, if any)."""
+def ref_defs(parsed: list) -> dict[str, str]:
+    defs = {}
+    for b in parsed:
+        if isinstance(b, Text):
+            m = REF_DEF.match(b.text)
+            if m:
+                defs.setdefault(m.group(1).strip().lower(), m.group(2))
+    return defs
+
+
+def link_targets(text: str, defs: dict[str, str]) -> list[tuple[str, str | None]]:
+    """(raw target, the @hash written right after the link, if any)."""
     found = []
+
+    def add(target, end):
+        h = HASH_AFTER.match(text, end)
+        found.append((target, h.group(1) if h else None))
+
     for m in INLINE_LINK.finditer(text):
-        h = HASH_AFTER.match(text, m.end())
-        found.append((m.group(1), h.group(1) if h else None))
+        add(m.group(1), m.end())
     m = REF_DEF.match(text)
     if m:
-        h = HASH_AFTER.match(text, m.end())
-        found.append((m.group(1), h.group(1) if h else None))
+        add(m.group(2), m.end())
+    else:
+        for m in REF_USE.finditer(text):
+            label = (m.group(2) or m.group(1) or m.group(3) or "").strip().lower()
+            if label in defs:
+                add(defs[label], m.end())
+    for m in HTML_SRC.finditer(text):
+        add(m.group(1), m.end())
     return found
 
 
-def check_links(plan: Path, texts: list[Text]) -> list[str]:
-    findings = []
+def check_links(plan: Path, lines: list[Text | Heading], defs: dict[str, str]) -> list[str]:
     root = plan.parent.resolve()
-    for t in texts:
-        for raw, written in link_targets(t.text):
+    seen: dict[str, tuple[int, list[str | None], str]] = {}
+    for b in lines:
+        for raw, written in link_targets(b.text, defs):
             target = raw[1:-1] if raw.startswith("<") and raw.endswith(">") else raw
             target = unquote(re.split(r"[#?]", target, maxsplit=1)[0])
-            if not target.lower().endswith(PICTURE_SUFFIX) or SCHEME.match(target):
+            if not target.lower().endswith(PICTURE_SUFFIX) or URL.match(target):
                 continue
-            where = f"line {t.line}: linked picture {target}"
-            if target.startswith("/") or target.startswith("~"):
-                findings.append(f"{where} is absolute; keep it beside the plan")
-                continue
+            entry = seen.setdefault(target, (b.line, [], target))
+            entry[1].append(written)
+
+    findings = []
+    for target, (line, written, _) in seen.items():
+        where = f"line {line}: linked picture {target}"
+        if "\x00" in target:
+            findings.append(f"{where} is not a valid path")
+            continue
+        if ABSOLUTE.match(target):
+            findings.append(f"{where} is absolute; keep it beside the plan")
+            continue
+        try:
             resolved = (root / target).resolve()
-            if not resolved.is_relative_to(root):
-                findings.append(f"{where} is outside the plan's directory")
-                continue
-            if not resolved.is_file():
-                findings.append(f"{where} does not exist")
-                continue
-            actual = short_hash(resolved)
-            if written is None:
-                findings.append(f"{where} carries no hash; write `@{actual}` after the link")
-            elif written != actual:
-                findings.append(f"{where} @{written} is stale: the file is @{actual}; review the redraw")
+            resolved.relative_to(root)
+        except ValueError:
+            findings.append(f"{where} is outside the plan's directory")
+            continue
+        if not resolved.is_file():
+            findings.append(f"{where} does not exist")
+            continue
+        actual = short_hash(resolved)
+        hashes = {w for w in written if w}
+        if not hashes:
+            findings.append(f"{where} carries no hash; write `@{actual}` after the link")
+        elif actual not in hashes:
+            stale = ", ".join(f"@{h}" for h in sorted(hashes))
+            findings.append(f"{where} {stale} is stale: the file is @{actual}; review the redraw")
     return findings
 
 
 def is_sentence(text: str) -> bool:
-    words = re.findall(r"[^\W\d_][\w'’-]*", LINK_TEXT.sub("", text))
-    return len(words) >= MIN_SENTENCE_WORDS
+    prose = NOT_PROSE.sub(lambda m: m.group(1) or " ", text)
+    words = re.findall(r"[^\W\d_][\w'’-]*", prose)
+    wide = sum(1 for c in prose if unicodedata.east_asian_width(c) in "WF" and c.isalpha())
+    return len(words) + wide // 2 >= MIN_SENTENCE_WORDS
 
 
 def check(plan: Path) -> list[str]:
     text = plan.read_text(encoding="utf-8-sig")
-    section = picture_section(blocks(text.splitlines()))
+    parsed = blocks(text.splitlines())
+    section = picture_section(parsed)
     if section is None:
         return ["no `## Picture` section"]
     content = [b for b in section if not (isinstance(b, Text) and not b.text.strip())]
     if not content:
         return ["`## Picture` is empty: draw it, or write `none: <why>`"]
+    defs = ref_defs(parsed)
 
     first = content[0]
     if isinstance(first, Text) and NONE_LINE.match(first.text):
         reason = NONE_LINE.match(first.text).group(1).strip()
         if len(reason.split()) < MIN_REASON_WORDS or "<why>" in reason:
             return [f"line {first.line}: `none:` needs a reason of {MIN_REASON_WORDS} words or more"]
-        if len(content) > 1:
-            return [f"line {content[1].line}: a `none:` section holds its reason line and nothing else"]
+        if len(content) > 1 or link_targets(first.text, defs):
+            return [f"line {first.line}: a `none:` section holds its reason and nothing else"]
         return []
 
     findings = []
     fences = [b for b in content if isinstance(b, Fence)]
-    texts = [b for b in content if isinstance(b, Text)]
     if not fences:
         return ["no fenced block in `## Picture` (or `none: <why>` for no picture)"]
     if len(fences) > 1:
@@ -200,10 +265,11 @@ def check(plan: Path) -> list[str]:
     if ASCII_STROKE.search(joined) and BOX_CHAR.search(joined):
         findings.append("ASCII strokes and box-drawing characters mixed in the picture")
 
-    after = [t for t in texts if t.line > art.line]
-    if not any(is_sentence(t.text) for t in after):
+    after = [p for p in paragraphs(section) if p.line > art.line]
+    if not any(is_sentence(p.text) for p in after):
         findings.append("no sentence after the picture saying what it shows")
-    findings.extend(check_links(plan, texts))
+    scanned = [b for b in section if isinstance(b, (Text, Heading))]
+    findings.extend(check_links(plan, scanned, defs))
     return findings
 
 

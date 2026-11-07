@@ -212,6 +212,54 @@ class Links(unittest.TestCase):
         self.assertTrue(has(found, "is stale"), found)
 
 
+class RoundTwo(unittest.TestCase):
+    """Findings of the second review round."""
+
+    def suffix(self, extra, files=None):
+        return run(GOOD.replace("\n\n## Phases", f"\n{extra}\n\n## Phases"), files)
+
+    def test_link_in_a_subheading_is_checked(self):
+        self.assertTrue(has(self.suffix("### [p](missing.svg) @0000000"), "does not exist"))
+
+    def test_reference_defined_outside_the_section(self):
+        text = GOOD.replace(SENTENCE, f"{SENTENCE} Full: [p][diagram] @0000000") + "\n[diagram]: missing.svg\n"
+        self.assertTrue(has(run(text), "does not exist"))
+
+    def test_parenthesised_title_and_html_src(self):
+        self.assertTrue(has(self.suffix("[p](missing.svg (Overview))"), "does not exist"))
+        self.assertTrue(has(self.suffix('<img src="missing.svg" alt="p">'), "does not exist"))
+
+    def test_wrapped_sentence_passes(self):
+        self.assertEqual(run(GOOD.replace(SENTENCE, "The gates\nnow precede push.")), [])
+
+    def test_code_and_comments_are_not_prose(self):
+        for line in ["    The gates now precede push.", f"`{SENTENCE}`",
+                     "<!-- todo write the sentence here -->"]:
+            self.assertTrue(has(run(GOOD.replace(SENTENCE, line)), "no sentence"), line)
+
+    def test_cjk_sentence(self):
+        self.assertEqual(run(GOOD.replace(SENTENCE, "推送现在先经过检查关卡。")), [])
+
+    def test_none_with_a_link_on_its_line(self):
+        found = run("## Picture\n\nnone: a version bump only [p](missing.svg)\n")
+        self.assertTrue(has(found, "nothing else"), found)
+
+    def test_nul_in_target_is_a_finding_not_a_crash(self):
+        self.assertTrue(has(self.suffix("[x](a%00.svg) @abc1234"), "not a valid path"))
+
+    def test_colon_in_name_is_checked_and_windows_path_is_absolute(self):
+        self.assertTrue(has(self.suffix("[p](plan:v2.svg)"), "does not exist"))
+        self.assertTrue(has(self.suffix("[p](C:/x.svg)"), "absolute"))
+
+    def test_flag_labels_in_a_box_picture_are_not_strokes(self):
+        art = "┌──────────────────────┐\n│ git push --no-verify │\n└──────────────────────┘"
+        self.assertEqual(run(GOOD.replace(" agent --push--> remote", art)), [])
+
+    def test_hash_ignores_line_endings(self):
+        with Plan(GOOD, {"a.svg": "<svg>\n</svg>\n", "b.svg": "<svg>\r\n</svg>\r\n"}) as p:
+            self.assertEqual(p.hash_of("a.svg"), p.hash_of("b.svg"))
+
+
 class Main(unittest.TestCase):
     def run_main(self, args):
         out, err = io.StringIO(), io.StringIO()

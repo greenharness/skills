@@ -80,14 +80,20 @@ become a programme. If you think it does, say so in the message that
 presents the plan, after the page is open.
 
 A programme map starts in this tier: its path to the end state outgrows
-eight boxes as soon as it has a few tickets.
+eight boxes as soon as it has a few tickets. Its `## Picture` still holds
+one outline block, not one per ticket.
 
-1. Name the SVG `<slug>.svg`, where `<slug>` is the plan's H1 in
-   kebab-case, five words at most: the slug its landed file
-   `docs/plans/<date>-<slug>.md` will carry. Write it next to the plan.
-   The relative link then reads the same in plan mode and once landed, so
-   landing does not change the reviewed body. If a file of that name
-   already exists, stop and pick another slug; never overwrite it.
+`<this-skill-dir>` below is where this file sits; installed by grh, that
+is `~/.claude/skills/plan-picture`.
+
+1. Name the SVG `<date>-<slug>.svg`: today's date (`YYYY-MM-DD`) and the
+   plan's H1 in kebab-case, five words at most. Write it next to the plan.
+   The plan links it by that bare name, so the link reads the same in plan
+   mode and once landed beside the plan in `docs/plans/`, and landing does
+   not change the reviewed body. If a file of that name already exists in
+   either place, pick another slug before the panel runs; never overwrite
+   it. A clash found only at landing means a rename, which changes the
+   body: the backend reviewer re-runs on it.
 2. Draw it with the `artifact-diagramming` skill's inline-SVG rules when
    that skill is present. Without it: text as `<text>`, not paths; a
    `<title>` and a `<desc>` holding the step 1 sentence; colours through
@@ -97,10 +103,11 @@ eight boxes as soon as it has a few tickets.
    to five boxes), the sentence, and the link with the file's short hash:
 
    ```markdown
-   The gates move before the push. Full picture: [gates-before-push.svg](gates-before-push.svg) @3f9a1c2
+   The gates move before the push. Full picture: [the gates](2026-11-08-gates-before-push.svg) @3f9a1c2
    ```
 
-   `python3 <this-skill-dir>/check.py --hash <slug>.svg` prints the hash.
+   `python3 <this-skill-dir>/check.py --hash <file>.svg` prints the hash.
+   It reads CRLF as LF, so a checkout's line endings do not stale it.
    The hash puts the SVG under the plan's reviewed body: a redraw changes
    the hash, so the plan changes and the panel sees it.
 4. Open the page for the person before asking them anything about the plan:
