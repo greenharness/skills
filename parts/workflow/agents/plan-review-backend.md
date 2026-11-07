@@ -24,24 +24,27 @@ and then Grep is the fallback. For a pyright or typescript-language-server
 version fleet-lsp has not measured (`fleet-lsp doctor` says so), an empty
 answer in the first minute is not evidence: confirm it with Grep.
 
-First, before anything else, check what the plan declares. When the
-brief's `plan-panel` line ends in `seats=paths`, the architect, product
-owner, UX research and game UX seats come only from the machine comment's
-`adds=`. The values that exist are `cli`, `ui`, `screen`, `ops`, `contract`
-and `lang:<language>`; no other value exists.
+First, before anything else, check what the plan declares. The brief's
+`plan-panel` line lists in `areas=` the classes the panel was seated from:
+`contract` seats the architect and product owner, `screen` the UX research
+and game UX seats, and nothing else does. The values that exist are `cli`,
+`ui`, `screen`, `ops`, `contract` and `lang:<language>`; no other value
+exists (on an amont-agent older than 3.22.0, `large` in place of
+`contract`, and no `screen`).
 
-1. The plan adds a module, crate or repository, or changes a contract
-   another repository consumes (an API, a published crate or package, a
-   file format or schema another repository reads), and `adds=` has no
-   `contract`: a `[blocking]` finding that says "add `adds=contract`".
-2. The plan's Behaviour adds a screen or a flow, and `adds=` has no
-   `screen`: a `[blocking]` finding that says "add `adds=screen`".
+1. `areas=` has no `contract`, and the plan adds a module, crate or
+   repository, or changes a contract another repository consumes (an API,
+   a published crate or package, a file format or schema another
+   repository reads): a `[blocking]` finding that says "add
+   `adds=contract`".
+2. `areas=` has no `screen`, and the plan's Behaviour adds a screen or a
+   flow: a `[blocking]` finding that says "add `adds=screen`".
 3. A phase names no file in backticks: a finding naming the files that
    phase touches, because one such phase seats the whole plan from its
    repositories' areas.
 
-A plan that needs neither declaration, or already carries it, gets no
-finding about `adds=`.
+A plan that needs neither, or whose `areas=` already has the class, gets
+no finding about `adds=`.
 
 Then look for:
 
