@@ -129,16 +129,22 @@ go, about 40–80k per reviewer.
 
 1. Tell the person first, in one line:
    `📍 <project>: reviewing "<plan title>" with <agent names>; about 3–6 min, you can switch projects meanwhile.`
-2. For each agent, get its review block, and pass `--lang` for a language
-   review:
+2. For each agent, get its review block: run `plan-sha --block` with the
+   flags its `plan-panel` line ends with (`--lang rust` for a language
+   review, `--slice <role>` for a seat bound to its slice):
 
    ```sh
-   amont-agent plan-sha --block [--lang rust] <plan.md>
+   amont-agent plan-sha --block [--lang rust] [--slice lang:rust] <plan.md>
    ```
+
+   With `--slice` it prints two lines: the block, and `Your slice: …`,
+   which tells the reviewer which phases are its own. An amont-agent older
+   than 3.23.0 prints no `--slice` in `plan-panel`; run the plain block then.
 
 3. Launch **all** the agents in ONE message, in parallel. Each prompt
    carries, in this order:
-   - the review block line, verbatim;
+   - the review block's stdout lines (one, or two with `--slice`),
+     verbatim; never its stderr;
    - `Round 1.`;
    - the shared brief;
    - "Read the plan at the block's path. Open at most 10 more files or
@@ -243,19 +249,23 @@ edits cost more of the session's context than the four reviews they applied.
 ## 5. Round 2: delta only
 
 Re-run the reviewers whose verdict was `rework`, plus
-**`plan-review-backend` always**. Backend must bind the FINAL body, because
-the hook requires it: every edit to the body after backend's review makes
-backend stale.
+**`plan-review-backend` always**, plus every seat `plan-panel` names that
+the edits made stale. Backend must bind the FINAL body, because the hook
+requires it: every edit to the body after backend's review makes backend
+stale. A seat bound to its slice (amont-agent 3.23.0) is stale only when an
+edit touched its slice; then the hook names it, with the span that moved.
 
 1. Post: `📍 <project>: round 2, re-running <names>, about 2 min.`
    Returns use the same `k/N returned:` line.
-2. Get fresh blocks. The sha changed with the edits.
+2. Get fresh blocks, with the same `--lang`/`--slice` flags. The sha
+   changed with the edits.
 3. Each prompt carries:
    - the block;
    - `Round 2.`;
    - that reviewer's round-1 findings, and that its patches were applied
      by `plan-apply` where they matched;
-   - the diff of the plan since round 1;
+   - the diff of the plan since round 1 (for a sliced seat, the part of it
+     inside its slice is what it must answer for);
    - "answer resolved / not resolved / new blocker for each".
 
 A round-1 reviewer may be resumed with `SendMessage` instead of a fresh
@@ -358,7 +368,8 @@ After ExitPlanMode is rejected with feedback:
    the person's words as the accepted line; there is no reviewer patch for
    it.
 2. Run `amont-agent plan-panel <plan.md>`. It prints `panel=delta`, with
-   backend plus the reviewers of any area that is new.
+   backend plus the reviewers of any area that is new, plus every seat
+   bound to a slice that the change touched (amont-agent 3.23.0).
 3. Launch those once. Each prompt carries:
    - the block;
    - `Delta.`;
