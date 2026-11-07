@@ -12,3 +12,13 @@ This repository carries Phase 4. The plan-review skill runs `plan-sha --block` w
 ## Code review
 
 - greenharness-skills: none — markdown only
+
+## Implementation review
+
+- implementation-review: round 1 approve-with-changes (refusal forms missing, stale round-2 flags, the two-line resume; fixed), delta approve-with-changes (the refusal text predated amont-agent's own review; §5's block line; fixed), then approve on the fixed tree. 39k+44k+46k.
+
+## Verification
+
+Rows are in the canonical plan; results are recorded here.
+- `./scripts/check.sh` → exit 0, and `python3 -m unittest discover -s tests` → OK, on tree 3a8cfd33.
+- The skill's commands and refusal text match amont-agent's branch (`plan-sha --block --slice`, two stdout lines, ` --slice <role>` in `plan-panel`, the four refusal forms in its docs/plan-review.md).
