@@ -70,7 +70,12 @@ Then look for:
   every repository the plan touches, and each profile left out of what
   `amont-agent plan-panel --code-review` proposes carries a reason that
   holds for this change. A missing section, a missing repository or a
-  reason that does not hold is a finding, with the line it needs.
+  reason that does not hold is a finding, with the line it needs;
+- the `## Picture` section, when the plan has one: the picture (and the
+  SVG it links) draws the mechanism the phases build, with their names. A
+  box, label or flow the phases do not build, or a phase that changes the
+  mechanism and is not drawn, is a finding. A `none: <why>` on a plan that
+  does change how something flows is a finding asking for the picture.
 
 Every finding needs evidence: a `file:line`, a measured number, or a cited
 source.

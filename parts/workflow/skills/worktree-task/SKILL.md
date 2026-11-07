@@ -142,6 +142,10 @@ The approved plan is the branch's FIRST commit, before any code.
    - **Check the landed copy:** `amont-agent plan-sha --short <landed>`
      must still equal `body-sha`. Since 2.22.1, `plan-sha` skips front
      matter.
+   - **A linked picture** (`.svg` or `.html` in its `## Picture`): copy
+     each file from beside the approved source into `docs/plans/` under
+     the same name, refusing if a different file of that name exists. Then
+     `python3 ~/.claude/skills/plan-picture/check.py <landed>` must exit 0.
 5. **Commit it alone** (with its sidecar): `docs(plan): <slug>`.
 
 Skip all of this for a change describable in one sentence: it joins the
