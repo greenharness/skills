@@ -6,8 +6,22 @@ description: Run the expert review panel on a plan before ExitPlanMode, and agai
 # plan-review
 
 Every plan is reviewed by a panel of experts **before** the person sees it.
-The panel follows what the plan touches, and amont-agent computes it from
-the repositories, never from keywords:
+The panel follows what the plan touches, and amont-agent computes it, never
+from keywords. When every phase of the plan names, in backticks, the files
+it touches, the seats come from those files' types:
+
+| the named files | agents |
+|---|---|
+| always | `plan-review-backend` |
+| `.rs`, `.go`, `.py`, `.ts`/`.js` and their manifests | `plan-review-language` for that language |
+| `.tsx`/`.jsx`, CSS, stories | `plan-review-react`, `plan-review-ui-design` |
+| Kubernetes, Helm, Flux, Terraform, a Dockerfile, CI workflows, other YAML that is not a tool's configuration | `plan-review-platform` |
+| any code file of a repository with a command line | `plan-review-unix`, `plan-review-tui` |
+| `adds=screen` | `plan-review-ux-research`, `plan-review-game-ux` |
+| `adds=contract` | `plan-review-po`, `plan-review-architect` |
+
+When a phase names no file, the panel follows the areas of the plan's
+repositories instead, and `plan-panel` says so on stderr:
 
 | area | agents |
 |---|---|
@@ -16,6 +30,10 @@ the repositories, never from keywords:
 | a command line | `plan-review-unix`, `plan-review-tui` |
 | large (500 or more files or own commits) | `plan-review-po`, `plan-review-architect` |
 | an interface | `plan-review-react`, `plan-review-ui-design`, `plan-review-ux-research`, `plan-review-game-ux` |
+
+With an amont-agent older than 3.22.0 (`amont-agent --version`), the area
+table alone holds, and `adds=` takes the values it took then: `cli`, `ui`,
+`ops`, `large`, `lang:<language>`.
 
 Rounds are bounded: round 1 is the whole panel, round 2 is a delta, and
 there is no round 3. A change the person asks for gets one delta review and
@@ -34,9 +52,16 @@ adds that do not exist yet:
   (`AMONT_AGENT_PLAN_ROOT`). A repository kept
   elsewhere has `git config --global amont.agent.plan-review.<name>.path`
   set, for example `dotfiles` → `~/.local/share/chezmoi`.
-- `adds=` takes `cli`, `ui`, `ops`, `large` or `lang:<language>`. It is
-  required for an area the plan creates: a first CLI, UI or manifests, or a
-  new repository (`adds=lang:rust`).
+- `adds=` takes `cli`, `ui`, `screen`, `ops`, `contract` (`large` is its
+  old name) or `lang:<language>`. It declares what no named file shows:
+  - `contract` when the plan adds a module, crate or repository, or
+    changes a contract another repository consumes;
+  - `screen` when the Behaviour adds a screen or a flow;
+  - an area the plan creates: a first CLI, UI or manifests, or a new
+    repository (`adds=lang:rust`).
+
+  A plan seated from its files without the `contract` or `screen` it needs
+  loses those seats; the backend reviewer holds it to them.
 
 The plan also needs a `## Review panel` section directly under the H1. Write
 a placeholder line there now; step 7 fills it.
@@ -49,8 +74,11 @@ beside implementation-review. Propose it with
 amont-agent plan-panel --code-review <plan.md>
 ```
 
-which prints one `<repo><TAB><profiles|none>` line per repository from its
-areas. Write one line per repository:
+which prints, per repository, `<repo><TAB><profiles>`, or
+`<repo><TAB>none<TAB><reason>` (`markdown only`, `no reviewed file type`,
+`no file named`, `no language area`), from the file types of the files its
+phases name, or from its areas when a phase names no file. Write one line
+per repository:
 
 ```markdown
 ## Code review
@@ -76,8 +104,9 @@ that fails on model availability follows the `agent-model-fallback` skill.
 amont-agent plan-panel <plan.md>
 ```
 
-The first line reads `repos=… areas=… body=<12> panel=full|delta|current`,
-then one agent per line. That list is exactly what the hook will require;
+The first line reads `repos=… areas=… body=<12> panel=full|delta|current
+seats=paths|areas`, then one agent per line; `areas=` lists the classes the
+seats came from. That list is exactly what the hook will require;
 launch that list, no more and no fewer. `panel=current` means nothing
 changed since the last accepted body: go to step 7.
 
@@ -139,7 +168,7 @@ edits cost more of the session's context than the four reviews they applied.
 - Record the round, BEFORE the plan is edited (it saves the reviewed body
   only while the file still holds it), with one object per finding on
   stdin; `section` is the plan heading it is about, `area` one of
-  cli|ui|ops|large|lang:<x> when it is clear:
+  cli|ui|screen|ops|contract|lang:<x> when it is clear:
 
   ```sh
   echo '[{"role":"tui","severity":"high","disposition":"accepted","section":"Behaviour","area":"cli"}]' \

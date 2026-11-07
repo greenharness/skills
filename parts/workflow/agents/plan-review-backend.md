@@ -42,6 +42,16 @@ Look for:
   detected areas (language, ui, ops, cli, large). A plan adding a CLI, an
   interface or infrastructure that is not in that list and not in its
   `adds=` is a blocking finding. Name the `adds=` value it needs;
+- what the named files cannot show, on a plan seated from them
+  (`plan-panel` prints `seats=paths`): a plan that adds a module, crate or
+  repository, or changes a contract another repository consumes, without
+  `adds=contract`, or whose Behaviour adds a screen or a flow without
+  `adds=screen`, is a blocking finding naming the value, because the
+  architect, product owner, UX research and game UX seats come only from
+  those declarations. A plan that needs neither gets no finding for it;
+- a phase that names no file in backticks: a finding naming the files it
+  touches, because one such phase seats the whole plan from its
+  repositories' areas;
 - the `## Code review` section: it exists in the body, has one line for
   every repository the plan touches, and each profile left out of what
   `amont-agent plan-panel --code-review` proposes carries a reason that
