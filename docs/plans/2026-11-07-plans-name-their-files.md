@@ -17,9 +17,15 @@ This repository carries Phase 2. The plan template asks each phase to name, in b
 
 - implementation-review: round 1 approve-with-changes, 3 low fixed (`large` named only for an older amont-agent in the backend bullet and the ledger areas; the older-tool case opens the skill), 1 deliberate (Phase 2 is ticked in the canonical plan with the v0.3.9 tag). Delta approve. 40k+23k.
 
+- implementation-review (the `adds=` fix): round 1 approve-with-changes (key the checks on `areas=`, not `seats=paths`, as the fixtures showed; 3 control runs; the older-tool values), all done; delta approve-with-changes, both findings on the canonical plan's text (Behaviour, versions), fixed in its closing commit. 37k+32k.
+
 ## Verification
 
 Rows are in the canonical plan; results are recorded here.
 - `./scripts/check.sh` → exit 0, no decision or rule id in `parts/`.
 - `python3 -m unittest discover -s tests` → OK.
 - The skill's `--code-review` line shapes match amont-agent 3.22.0's output on the canonical plan (`decisions\tnone\tno reviewed file type`).
+- The installed backend reviewer on four fixture plans (only an exact `adds=` blocking finding counts):
+  - 0.3.9's text: a crate with no `adds=` → `adds=contract` 1 of 3 (one run named a value that does not exist, `adds=interface`, one asked for `adds=ops`). A settings-screen fixture was void: that screen already exists in the repository, so nothing was added.
+  - The declarations moved to a first step, with the only valid values and the finding's exact wording (v0.3.10): crate, no `adds=` → `adds=contract` 3 of 3; a new Insights screen, no `adds=` → `adds=screen` 3 of 3; the crate with `adds=contract` → no `adds=` finding, 2 of 2; two phases naming no file → a finding asking for their files, 2 of 2.
+  - Implementation review: the first step must key on the brief's `areas=`, not on `seats=paths` (a plan seated from a small repository's areas gets no architect either). Final text, v0.3.10: crate, paths, no `adds=` → `adds=contract` 3 of 3; new screen, paths, no `adds=` → `adds=screen` 3 of 3; crate with `adds=contract` → no `adds=` finding 0 of 3; crate seated from areas without `contract` → `adds=contract` 2 of 2, with the no-file finding; crate seated from a large repository's areas (which hold `contract`) → no `adds=` finding 0 of 2 (one run's patch for a missing repository also wrote a redundant `adds=contract`).
