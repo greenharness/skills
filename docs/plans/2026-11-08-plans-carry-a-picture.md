@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/plan-picture
 repos: [greenharness-skills]
 adrs: []
@@ -64,7 +64,7 @@ raster generation.
 - [x] Phase 2 — the wiring: `parts/workflow/skills/plan-review/SKILL.md`,
   `parts/workflow/agents/plan-review-backend.md`,
   `parts/workflow/skills/worktree-task/SKILL.md`
-- [ ] Phase 3 — release and grh pin bump
+- [x] Phase 3 — release and grh pin bump
 
 ## Decision log
 
@@ -98,4 +98,8 @@ raster generation.
 - implementation-review: round 1 approve-with-changes, 3 fixed (the plan's own checker row observed, unittest summaries quoted, `RoundTwo` renamed `MarkdownEdges`); 9 candidates fine. 47k, 42 s.
 - implementation-review: delta approve, 3 of 3 resolved, no new finding. 26k, 16 s.
 
-Next: Phase 3, release and grh pin bump.
+## Outcome
+
+- 2026-11-08: #18 merged (`260cb83`), released as v0.5.0 (the tarball matches `SHA256SUMS` and carries `plan-picture`).
+- grh pinned 0.5.0 and added `plan-picture` to the workflow part's skill list (greenharness/grh#24, `3dd74ab`), released as grh v0.1.18. That needed greenharness/grh#25 first: GitHub's web download route answered 504 all morning, and grh had no fallback.
+- Laptop: grh 0.1.18 via Homebrew; `grh install workflow --yes` placed `~/.claude/skills/plan-picture`, identical to `parts/workflow/skills/plan-picture` (`diff -r`). The installed `check.py` exits 0 on a real plan (grh's download plan).
