@@ -28,6 +28,23 @@ Standing rule: **never use `gh pr merge --auto`** on a repository without branch
    ```
    Loop until `status` is `completed` for all required checks. Use `until`/`sleep` in a single foreground command, or check back periodically — don't spin tightly.
 
+   **Every poll loop gets a deadline.** An `until` loop with no exit runs
+   forever on a check that stays `pending` (a 6 h 14 min background loop did
+   on 2026-11-06, over eight PRs):
+   ```bash
+   end=$((SECONDS+3600)); until <all checks completed> || [ $SECONDS -ge $end ]; do sleep 45; done
+   [ $SECONDS -ge $end ] && echo TIMEOUT
+   ```
+   - Print `TIMEOUT` when the deadline fires and report the check that never
+     completed. Never merge on a timeout.
+   - Iterate over several PRs or runs with an array (`prs=(1 2 3); for p in "${prs[@]}"`):
+     zsh does not word-split an unquoted `$var`, so a loop over a string
+     visits it once and never finishes. Do not hide the status call with
+     `2>/dev/null` inside the loop.
+   - When a narrower poll replaces an older one, `TaskStop` the older one in
+     the same turn. Before a long wait, check for leftover background shells
+     of this session.
+
 2b. **Check the plan, warn only.** If the PR adds or changes a file under
    `docs/plans/`, read its front matter from the PR head: a plan still
    `active` whose phases are all ticked, or `done` with phases unticked, is

@@ -47,8 +47,11 @@ amont-agent board --repo <repo> --fetch
 
 ```bash
 cd <repo-root>
-git worktree add ../<repo>-wt-<slug> -b <branch-name> origin/main
+git worktree add --no-track ../<repo>-wt-<slug> -b <branch-name> origin/main
 ```
+
+- `--no-track` is required. Without it git makes the new branch track `origin/main` (or `origin/dev`), and `amont land` pushes to the upstream: the work lands on the default branch with no pull request. This happened twice in one week (2026-10-21, 2026-10-25) on a repository whose default branch no hook guards.
+- A branch that already exists (an earlier session's worktree): run `git branch --unset-upstream` in it.
 
 - Pick `<branch-name>` following this repo's existing convention (check recent branch names via `git branch -a` / `git log --all --oneline -20` if unsure — e.g. `feat/…`, `fix/…`).
 - After creating it, `cd` into the new worktree path for the rest of the task. Confirm you're on the right branch with `git branch --show-current` before editing.
@@ -345,7 +348,10 @@ below names one of them.
     hook alone writes a pass file, and refuses a Write, Edit or Bash there.
 - **F5.** If the SHA to push differs from the verified tree in more than
   the plan commit, return to F2.
-- **F6. Non-UI push.** Land the branch: `amont land --json`, alone in its
+- **F6. Non-UI push.** First, in the same turn, `git rev-parse --abbrev-ref @{u}`:
+  it must fail (no upstream) or name `origin/<branch>`. Any other answer
+  (`origin/main`, `origin/dev`) would make the land a push to the default
+  branch: run `git branch --unset-upstream` first. Then land the branch: `amont land --json`, alone in its
   command (or after one `cd <worktree> &&`), in the foreground. From amont
   2.0 it runs every push gate the push owes before git connects, then
   pushes; below 2.0, run `amont rehearse --wait` first. Exit 0 is the proof:
