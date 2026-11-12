@@ -170,11 +170,16 @@ below names one of them.
   conflicts in place, never in the live checkout.
 - **F2. Verification loop**. Check
   the changed behaviour observably, against the plan's Verification section:
-  - UI: Claude in Chrome on the local dev server — open the changed route,
-    exercise the interaction (click, type, mobile width), read console and
-    network, screenshot; where a picked artboard exists, beside it
-    (`handoff.prove-fidelity`). Put the two side by side and list every
-    difference BEFORE the guide: fix each, or name it
+  - UI: launch the `browser-check` agent (haiku) on the local dev server with
+    the route, viewport, theme, steps, questions and the short sha; it opens
+    the changed route, exercises the interaction (click, type, mobile width),
+    reads console and network, and files screenshots under
+    `attestations/<sha>/`. Read only its report: the screenshots stay out of
+    this session. Done when the report answers every question and every path
+    it lists exists. Where a picked artboard exists (`handoff.prove-fidelity`),
+    name in the brief the elements and properties to measure; compare the
+    measured values to the artboard yourself, open one screenshot beside it
+    for what numbers cannot show, and list every difference BEFORE the guide: fix each, or name it
     `deliberate: <reason>`. When accessibility seems to need a design
     change, look first for a fix that keeps the design (an `sr-only`
     copy, aria, a live region outside the control).
