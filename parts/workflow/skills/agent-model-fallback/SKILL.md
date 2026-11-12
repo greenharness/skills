@@ -16,7 +16,7 @@ A named agent (a reviewer, an applier) has a **preferred model** and a
    run the pinned model.
 2. The launcher passes the preferred model on the first attempt as the
    `model` parameter of `Agent`. Preferred model of every first-party
-   reviewer: `opus`. Of the plan-apply helper: `sonnet`.
+   reviewer: `opus`. Of the plan-apply helper: `sonnet`. Of `browser-check`: `haiku`.
 3. On a failure `fallback.py decide` answers `fallback` (the error is a
    `cooldown` or `unavailable`), launch the
    **same agent type** once more with **no `model` parameter**. It inherits
