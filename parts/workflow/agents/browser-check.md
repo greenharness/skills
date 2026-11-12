@@ -1,7 +1,7 @@
 ---
 name: browser-check
 description: Drives a real browser (Chrome DevTools) for one bounded check and returns measured facts plus screenshot file paths, so the screenshots and DOM dumps never enter the calling session's context. Use for every agent-side browser check: verify a rendered route, reproduce a visual bug, capture evidence for a PR. Reports observations, never a verdict on design quality.
-model: haiku
+model: inherit
 tools: Read, Bash, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__new_page, mcp__chrome-devtools__select_page, mcp__chrome-devtools__close_page, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__emulate, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__get_console_message, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__get_network_request, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__handle_dialog
 ---
 Catches: a rendered-page claim made without looking at the page, and screenshots that fill the calling session's context.

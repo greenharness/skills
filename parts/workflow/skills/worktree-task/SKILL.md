@@ -170,7 +170,7 @@ below names one of them.
   conflicts in place, never in the live checkout.
 - **F2. Verification loop**. Check
   the changed behaviour observably, against the plan's Verification section:
-  - UI: launch the `browser-check` agent (haiku) on the local dev server with
+  - UI: launch the `browser-check` agent with `model: "haiku"` (failure: `agent-model-fallback`) on the local dev server with
     the route, viewport, theme, steps, questions and the short sha; it opens
     the changed route, exercises the interaction (click, type, mobile width),
     reads console and network, and files screenshots under
