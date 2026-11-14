@@ -16,14 +16,14 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
 0. **Check that no other session releases this version.** Two sessions
    that prepare the same release race to the tag.
    ```bash
-   amont-agent board --repo <repo> --fetch
+   greenpiste board --repo <repo> --fetch
    git ls-remote --tags origin "v<version>"
    ```
    For each branch the board lists with a session on it, run
    `git diff --stat origin/<default>...<branch> -- <version file>`. Stop,
    and message that session or ask the person, when the tag already exists
    on origin, or when a branch a live session holds changes the version
-   file. When `amont-agent board --help` fails, run the `git ls-remote`
+   file. When `greenpiste board --help` fails, run the `git ls-remote`
    alone and say the board is a gap. Done when the tag is absent and no
    live session's branch bumps the version, or the person said to go on.
 
@@ -61,8 +61,8 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    On amont 2.0 a `v*` tag always goes through `amont land --tag`: only it
    runs the release audits on the tagged commit, so a bare tag push is
    refused whatever was stamped before. Unlike a branch, a tag has no bare
-   fallback there. Where an amont-agent older than
-   2.41 holds the land, upgrade amont-agent; with no amont-agent there is no
+   fallback there. Where a greenpiste older than
+   2.41 holds the land, upgrade greenpiste; with no greenpiste there is no
    guard, and the land runs as written.
 
    **Below amont 2.0, or without amont**, push the tag instead with:
@@ -72,7 +72,7 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    ```bash
    git push origin v<version>      # the next command, after the tag exists
    ```
-   Never `git tag … && git push …` in one command: the amont-agent push
+   Never `git tag … && git push …` in one command: the greenpiste push
    guards judge the whole command before any of it runs, so the tag does
    not exist yet, the push "cannot be read", and under deny it is held
    A push of an existing tag needs no preview

@@ -37,10 +37,10 @@ jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_us
 ```
 
 Also read:
-- the amont-agent journal lines for the session: `grep ' <id8> '
+- the greenpiste journal lines for the session: `grep ' <id8> '
   ~/.claude/amont-agent/journal.log` (`<id8>` is the first 8 characters of
   the session id; the 4th field is the stance: `deny`, `advise`, …);
-- `amont-agent mine`: mistake shapes that no rule names yet.
+- `greenpiste mine`: mistake shapes that no rule names yet.
 
 Done when you can name, for each session, its task in one line and its
 three most expensive moments (time, tokens or a wrong result), each with a
@@ -74,7 +74,7 @@ Look for candidates in each class. A class with nothing is fine; say so.
 Use the first fix that applies:
 
 1. **Mechanical mistake** (a fixed pattern, a banned command, a path rule):
-   an amont-agent rule (a hook), or an amont check in the repo's
+   a greenpiste rule (a hook), or an amont check in the repo's
    `amont.conf`. A check is better than a written rule.
 2. **Judgement call**: a proposed aval rule or ADR in the `decisions`
    corpus. You propose it; the person decides it.

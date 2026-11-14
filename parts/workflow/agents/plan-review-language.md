@@ -51,7 +51,7 @@ Patches:
 ```
 ````
 
-`Patches:` carries every finding's `Edit:` as a pair `amont-agent plan-apply`
+`Patches:` carries every finding's `Edit:` as a pair `greenpiste plan-apply`
 applies with no model: `old_string` is copied from the plan verbatim and must
 occur exactly once (widen it to the surrounding lines until it does), several
 edits for one finding are several objects, and a finding with no edit (a

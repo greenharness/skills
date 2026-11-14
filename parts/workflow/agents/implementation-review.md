@@ -1,6 +1,6 @@
 ---
 name: implementation-review
-description: The one independent reviewer of an implementation before its push. Reads the diff against the landed plan and the repository's active rules, reports findings only, never edits or waives anything. Launched by worktree-task F4b with a `<<<TREE repo=… sha=…>>>` block; the amont-agent implementation-review hook checks at `git push` that it ran for the tree being pushed.
+description: The one independent reviewer of an implementation before its push. Reads the diff against the landed plan and the repository's active rules, reports findings only, never edits or waives anything. Launched by worktree-task F4b with a `<<<TREE repo=… sha=…>>>` block; the greenpiste implementation-review hook checks at `git push` that it ran for the tree being pushed.
 tools: Read, Grep, Glob, LSP
 model: inherit
 ---
@@ -14,7 +14,7 @@ Your prompt carries, in order: the review block
 (`<<<TREE repo=<name> sha=<64 hex>>>>` — the tree you are reading, which
 the hook will check against the push), `Round 1.` or `Delta.`, the
 `<<<RULES sha=…>>>` line, the `<<<CANDIDATES …>>>` block, the brief
-`amont-agent review-brief` built (inline,
+`greenpiste review-brief` built (inline,
 or its path to read in full), and this contract. In a repository with no
 `.adr.yaml` there is no RULES line and the brief says it has no decided code
 rules: that is not a defect. Read the plan at the path the brief
