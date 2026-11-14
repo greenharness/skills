@@ -28,7 +28,7 @@ What this deliberately leaves alone.
 ## Code review
 The expert profiles that review the code at the close, beside
 implementation-review: one line per repository, from
-`amont-agent plan-panel --code-review`.
+`greenpiste plan-panel --code-review`.
 - <repo>: backend, lang:<language>, unix (tui left out: <reason>)
 - <other-repo>: none — <reason>
 
@@ -106,7 +106,7 @@ Part of [<title>](<link to the canonical plan>).
 
 The `## Code review` section holds only this repository's line, copied
 verbatim from the canonical plan's section. The push gate reads it from the
-branch (amont-agent 3.14.0), so the declaration is versioned with the commit
+branch (greenpiste 3.14.0), so the declaration is versioned with the commit
 and an approval from the session carries. The section must declare this
 repository, either profiles or `none — <reason>`; an empty one, one that
 names only other repositories, or one that does not parse holds the push. A pointer without the section

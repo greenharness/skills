@@ -111,7 +111,7 @@ is `~/.claude/skills/plan-picture`.
    The hash puts the SVG under the plan's reviewed body: a redraw changes
    the hash, so the plan changes and the panel sees it.
 4. Open the page for the person before asking them anything about the plan:
-   `amont-agent open '<path-or-url>'`. Without amont-agent, give the
+   `greenpiste open '<path-or-url>'`. Without greenpiste, give the
    person the path in the final message and say it was not opened.
 
 An HTML page instead of an SVG only when the picture needs interaction:

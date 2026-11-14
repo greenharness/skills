@@ -15,7 +15,7 @@ Your prompt carries, in order: the review block
 (`<<<TREE repo=<name> sha=<64 hex>>>>`, the tree you read, which the push
 hook checks), `Round 1.` or `Delta.`, the `<<<RULES sha=…>>>` line (absent
 in a repository with no decided code rules), a `Profile: tui` line,
-and the brief `amont-agent review-brief --profile tui` built, as a path
+and the brief `greenpiste review-brief --profile tui` built, as a path
 to read in full. The brief is long, so the path keeps the prompt small. The
 push hook reads your `Profile:` line and review block only from the
 prompt's header, before any heading, fence or diff: the brief's own copies

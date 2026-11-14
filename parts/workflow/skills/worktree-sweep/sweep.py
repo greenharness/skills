@@ -186,7 +186,7 @@ def ensure_fetched(repo: Repo) -> bool:
     Without it the ahead-count compares against whatever remote-tracking ref
     happens to be cached. GitHub deletes the branch on merge, so the stale
     `origin/<branch>` lingers at the pre-squash commit and a finished branch
-    reads "1 unpushed commit" (seen on amont-agent chore/release-2.12.0, whose
+    reads "1 unpushed commit" (seen on greenpiste chore/release-2.12.0, whose
     HEAD *was* the squash commit already on main). Prune makes that ref
     disappear; the pr-head proof in classify() then takes over.
 

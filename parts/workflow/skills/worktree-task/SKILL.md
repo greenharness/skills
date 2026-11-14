@@ -27,7 +27,7 @@ current repository), run:
 
 ```bash
 git fetch origin -q
-amont-agent board --repo <repo> --fetch
+greenpiste board --repo <repo> --fetch
 ```
 
 - For each worktree, branch or plan of another session that overlaps this
@@ -37,7 +37,7 @@ amont-agent board --repo <repo> --fetch
   only when no other session already works this change.
 - A commit under "just landed" that already does this task: stop and tell
   the person.
-- When `amont-agent board --help` fails (amont-agent absent or older), run
+- When `greenpiste board --help` fails (greenpiste absent or older), run
   `git log --oneline HEAD..origin/<default>` instead and say the board is a
   gap.
 - Done when every overlap has a next action, or the output names none.
@@ -125,13 +125,13 @@ The approved plan is the branch's FIRST commit, before any code.
    repository's line from the canonical plan's `## Code review` section
    into the pointer's own `## Code review` section, verbatim.
 4. **Check its review**, before writing it:
-   - **No `## Review panel` heading** (a plan from before amont-agent
+   - **No `## Review panel` heading** (a plan from before greenpiste
      2.22.0, or one the person had skipped): land it as it is, with a
      one-line note in its Decision log.
    - **The section is there:** the last line must be the machine comment
      with a `body-sha`. If it is not, refuse; never treat the plan as
      unreviewed.
-   - **Compare the sha:** run `amont-agent plan-sha --short <source>` on
+   - **Compare the sha:** run `greenpiste plan-sha --short <source>` on
      the approved source file in `~/.claude/plans/` (the file the hook
      judged). Never run it on the landed copy, whose front matter
      `plan-sha` does not strip. It must equal `body-sha`.
@@ -142,7 +142,7 @@ The approved plan is the branch's FIRST commit, before any code.
      sidecar, `docs/plans/<name>.reviews.md`. Link it from a
      `📄 Full reviews:` line inside `## Review panel`, which is outside
      the reviewed body.
-   - **Check the landed copy:** `amont-agent plan-sha --short <landed>`
+   - **Check the landed copy:** `greenpiste plan-sha --short <landed>`
      must still equal `body-sha`. Since 2.22.1, `plan-sha` skips front
      matter.
    - **A linked picture** (`.svg` or `.html` in its `## Picture`): copy
@@ -202,14 +202,14 @@ below names one of them.
   OUTSIDE the worktree (`~/.claude/amont-agent/attestations/<sha>/`).
   They last 30 days unless a plan cites them as `attestations/<name>` or
   the directory holds a `.keep`; then they move to `.trash-<secs>-<name>`
-  for 7 days (`amont-agent attestations` lists what stays and why).
+  for 7 days (`greenpiste attestations` lists what stays and why).
 - **F4. Commit.** Where amont is installed this commit IS the project gate
   (the gate runs the tests at pre-commit); only a repo without amont runs a
   separate `make check` or equivalent here. Run `git status` first and
   stage explicit paths.
 - **F4b. Implementation review** (skipped
   when the branch carries no plan). One independent reviewer reads the
-  diff against the plan and the active rules. The amont-agent
+  diff against the plan and the active rules. The greenpiste
   `implementation-review` hook checks at the push that it happened for
   the tree being pushed, so run it after F4, on the committed tree:
   1. Post `📍 <project>: implementation review, round 1, about 2 min.`
@@ -217,12 +217,12 @@ below names one of them.
      at Start), never by hand (a hand-built brief once carried
      rule statements only, and the reviewer passed a placeholder name):
      ```bash
-     amont-agent review-brief --plan <landed plan> > <scratch>/brief.md
+     greenpiste review-brief --plan <landed plan> > <scratch>/brief.md
      ```
      It prints, in order:
      - the `<<<TREE repo=… sha=…>>>` block (the same as `tree-sha --block`:
        `HEAD` without `docs/plans/`) and a `<<<RULES sha=…>>>` line;
-     - the `<<<CANDIDATES sha=… n=…>>>` block (amont-agent 3.3.0 and
+     - the `<<<CANDIDATES sha=… n=…>>>` block (greenpiste 3.3.0 and
        adr-lint 0.3.0): one line per candidate line the diff adds, ending
        `<<<END CANDIDATES>>>`, or `<<<CANDIDATES unavailable>>>` when adr-lint
        could not run;
@@ -234,7 +234,7 @@ below names one of them.
      - a `## Candidates` section with each candidate's pattern and line;
      - the plan's Non-goals;
      - in the plan section, the plan's `## Code review` line for this
-       repository (`Declared code review for <repo>: …`, amont-agent 3.11).
+       repository (`Declared code review for <repo>: …`, greenpiste 3.11).
 
      For a pointer plan, pass the canonical plan's path. The merge-base is
      the remote's default branch; pass `--base <ref>` for a stacked branch.
@@ -242,7 +242,7 @@ below names one of them.
      `--base <ref>` (a stacked or local-only branch). Exit 3 means aval
      failed and nothing was printed; fix aval, never hand-build the brief
      instead. A repository with no `.adr.yaml` has no decided code rules:
-     the brief says so and carries no RULES line (amont-agent 3.3.0).
+     the brief says so and carries no RULES line (greenpiste 3.3.0).
   2b. **Interface review** (advisory; skipped unless the diff touches the
      repository's UI). Trigger: the `ui` areas from `aval traits`, matched
      against `git diff --name-only <base>..HEAD`; no match, no step. Build
@@ -266,7 +266,7 @@ below names one of them.
      `## Code review` section, or its line for this repository is
      `none — …`). For each profile the line declares, build its brief:
      ```bash
-     amont-agent review-brief --profile <role> --plan <landed plan> > <scratch>/brief-<role>.md
+     greenpiste review-brief --profile <role> --plan <landed plan> > <scratch>/brief-<role>.md
      ```
      It carries the TREE and RULES lines, `Profile: <role>` and the judge
      rules that profile reviews, and no candidates: candidates are
@@ -323,9 +323,9 @@ below names one of them.
      "answer resolved / not resolved / new blocker for each". The Delta may
      resume the same reviewer with `SendMessage` (the block first in the
      message) instead of a fresh launch: the hook counts a resumed round on
-     its new tree (amont-agent ≥ 2.30). Prefer a **fresh, small** launch
-     per seat with `amont-agent review-brief --interdiff <head>
-     [--profile <role>]` (amont-agent ≥ 3.20; the stale line names
+     its new tree (greenpiste ≥ 2.30). Prefer a **fresh, small** launch
+     per seat with `greenpiste review-brief --interdiff <head>
+     [--profile <role>]` (greenpiste ≥ 3.20; the stale line names
      `<head>`): the headers plus only what changed, instead of resuming a
      50-80k-token context. Never assert in prose that something is
      unchanged; the interdiff shows it. When it refuses (rules changed,
@@ -336,7 +336,7 @@ below names one of them.
      ancestor of the pushed one after the merge-base, and
      implementation-review passed the new tree. A rebase carries nothing by
      ancestry, so its profiles re-run unless the branch patch is unchanged
-     or only the root `CHANGELOG.md`'s context moved (amont-agent ≥ 3.18,
+     or only the root `CHANGELOG.md`'s context moved (greenpiste ≥ 3.18,
      journalled `reviewed-by-patch-notes-moved`): then no delta is due.
      A resumed profile round may omit its `Profile:` line; it keeps its
      launch's. There is no
@@ -367,8 +367,8 @@ below names one of them.
   was accepted but could not be read back): run the `git ls-remote` that
   land prints before landing again. The push guards judge a land as they
   judge a `git push`, but only in that shape; any other shape is held
-  under deny. Where amont or amont-agent is missing, or `amont --version`
-  is below 1.54 or `amont-agent --version` below 2.41 (the guards would not
+  under deny. Where amont or greenpiste is missing, or `amont --version`
+  is below 1.54 or `greenpiste --version` below 2.41 (the guards would not
   see the land), push as before: `git push -u origin <branch>` bare,
   confirmed with `git ls-remote origin refs/heads/<branch>`; with amont 2.0
   or later there, run `amont rehearse --wait` first, as its own command, or
@@ -411,7 +411,7 @@ below names one of them.
   4. **Register it** in the foreground, as the last command of its Bash call
      (anything joined by `&&` or `;` may come before it; never pipe it,
      redirect it or put it in `$(…)`):
-     `amont-agent preview register --url <url> --guide <that guide.md> --open`
+     `greenpiste preview register --url <url> --guide <that guide.md> --open`
      It refuses an incomplete guide. `--open` opens the rendered guide page
      in the person's browser.
      Its JSON prints `question_prefix` (`[preview <id>] <label>`): the
@@ -427,7 +427,7 @@ below names one of them.
      step's shot), `after` from this commit, at the same route and state.
      Never copy one shot onto the other; every `unchanged` approval is
      journalled and audited.
-  5. **Open the app for them in their own browser**: `amont-agent open
+  5. **Open the app for them in their own browser**: `greenpiste open
      '<url>'`, alone in its command (the machine's opener,
      `amont.agent.opener`), with the URL
      deep-linked to the state step 1 of "Try it" reaches where a route or

@@ -38,8 +38,8 @@ these four steps in order, from the repository the branch lives in.
 
    It pushes the branch and reads the remote back. The push guards judge
    a land as they judge a `git push`, in that shape only; any other shape
-   is held under deny. Where amont or amont-agent is missing, or
-   `amont --version` is below 1.54 or `amont-agent --version` below 2.41
+   is held under deny. Where amont or greenpiste is missing, or
+   `amont --version` is below 1.54 or `greenpiste --version` below 2.41
    (the guards would not see the land), push instead, bare. With amont 2.0
    or later there, stamp the tree first, as its own command, or that bare
    push is refused:
