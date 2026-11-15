@@ -192,6 +192,18 @@ edits cost more of the session's context than the four reviews they applied.
   `👉 decision`. Findings that duplicate each other become one line.
   Findings that conflict become a 👉 decision for the person, with both
   positions.
+- A `remove` or `merge` finding is accepted or rejected like any other;
+  rejecting one needs a reason that names whom the phase or safeguard
+  protects.
+- Count the growth before editing. Take the body as presented: the word
+  count (`wc -w`) of the plan the panel first reviewed, kept from round 1's
+  scratch copy. Every round compares to that same number, never to the
+  previous round. Count the body the accepted edits would produce:
+  - a round that would add a phase, or grow the body past ×1.25 of the
+    body as presented, states for each addition what it protects;
+  - past ×1.25, the additions become one 👉 decision for the person
+    instead of edits. `blocking` findings, and findings that fix a wrong
+    or unverifiable statement, are exempt and stay edits.
 - Record the round, BEFORE the plan is edited (it saves the reviewed body
   only while the file still holds it), with one object per finding on
   stdin; `section` is the plan heading it is about, `area` one of
@@ -371,8 +383,11 @@ Writing these never changes the body's sha, so the reviews stay bound.
      `📍 my-app · Phases 1–3 shipped · next: the nine agent files. Panel: backend (fable-5-1), tui (sonnet-5-5), codex (gpt-6-astra).`;
   4. `**Changed by review:**` up to 3 items;
   5. `**Verdicts:**` the counts per verdict, any delta rework that went
-     to the person, and the count of findings `carried into
-     implementation` (listed in the full reviews). Token counts and
+     to the person, the count of findings `carried into
+     implementation` (listed in the full reviews), the words as
+     presented → final (×ratio), and the `remove` and `merge` findings
+     accepted, for example
+     `**Verdicts:** 2 approve-with-changes; 3 carried; words 776 → 900 (×1.16); remove 1, merge 0.` Token counts and
      timings go in the full reviews, not here.
 - **`## Full reviews (reference)`** as the last heading: each reviewer's
   verdict, findings, tokens and wall time, Codex's included, as a plain
