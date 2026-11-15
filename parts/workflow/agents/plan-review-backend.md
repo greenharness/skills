@@ -92,7 +92,8 @@ extra check):
    profiles; no 🧑 step between them; neither is useful alone; the
    combined diff fits the review budget; the same kind of risk (an
    irreversible step stays alone). The finding states the PRs, releases
-   and previews the merge saves.
+   and previews the merge saves. The brief's `counts=` line names
+   `merge-candidates`: rule on each pair it lists, and on any it missed.
 
 A `remove` or `merge` finding keeps its severity bracket and names its
 kind as a bare word right after it: `[medium] remove: …`,

@@ -42,6 +42,16 @@ never a loop.
 
 ## 0. The machine comment
 
+**The plan id.** `greenpiste plan-panel` gives the plan a `plan-id:` line in
+its front matter the first time it runs, and a fresh one once the person has
+approved that id. Never write, copy or edit `plan-id:` by hand, not even
+into a new plan written over an old file (worktree-task's landing step is
+the one exception: it copies the line word for word into the landed plan): the id is how the ledger, the panel
+and `stats --time` tell one plan from the next in a reused plan file. After
+`plan-panel` runs, re-read the file before the next Edit (it may have
+written the front matter). A plan-panel that prints `ledger busy` or
+`plan changed under plan-panel` wrote nothing: do what its message says.
+
 The plan's **last line** names the repositories it touches, and the areas it
 adds that do not exist yet:
 
@@ -118,7 +128,10 @@ greenpiste plan-panel <plan.md>
 ```
 
 The first line reads `repos=… areas=… body=<12> panel=full|delta|current
-seats=paths|areas`, then one agent per line; `areas=` lists the classes the
+seats=paths|areas counts=…`, then one agent per line; `counts=` is one
+token (`repos:3,phases:6,prs:3,releases:2,person:2,words:3100,merge-candidates:2+3;5+6`),
+the plan's size for step 7 and for the backend seat. `words:A/B` is the
+body now and at round 1 (read it as `A words`); a `-` value counts as zero; `areas=` lists the classes the
 seats came from. That list is exactly what the hook will require;
 launch that list, no more and no fewer. `panel=current` means nothing
 changed since the last accepted body: go to step 7.
@@ -378,9 +391,21 @@ Writing these never changes the body's sha, so the reviews stay bound.
   1. `⚠ unreviewed: <why>`, only when the person asked to skip the panel;
   2. `👉 **Decide:** <what the person must decide>`, or
      `none — approve if <the one-line bet>`;
-  3. `📍 <repositories> · <where the work stands> · next: <one action>. Panel: <roles>.`,
-     each role with the model it ran on, and Codex last, for example
-     `📍 my-app · Phases 1–3 shipped · next: the nine agent files. Panel: backend (fable-5-1), tui (sonnet-5-5), codex (gpt-6-astra).`;
+  3. `📍 <repositories> · <counts in words, or where the work stands once a phase ships> · next: <one action>. Panel: <roles>.`,
+     each role with the model it ran on (one model named once when every
+     seat ran on it), and Codex last.
+     - The counts come from `counts=` and read `6 phases`, `3 PRs`,
+       `2 releases`, `2 steps for you`, `2 merge candidates`, `3100 words`.
+       Leave out a zero count, and use the singular for 1.
+     - Stay within about 20 words by dropping, in order: `words`, merge
+       candidates, PRs when equal to the repository count, then the list of
+       repositories (for `N repos`) when there are more than three. PRs
+       equal to the repository count are the usual case, so the example
+       leaves them out.
+     - For example
+       `📍 my-app · 6 phases · 2 releases · next: Phase 1. Panel: backend (fable-5-1), tui (sonnet-5-5), codex (gpt-6-astra).`,
+       or once work has shipped,
+       `📍 my-app · Phases 1–3 shipped · next: the nine agent files. Panel: backend, tui (sonnet-5-5).`;
   4. `**Changed by review:**` up to 3 items;
   5. `**Verdicts:**` the counts per verdict, any delta rework that went
      to the person, the count of findings `carried into
