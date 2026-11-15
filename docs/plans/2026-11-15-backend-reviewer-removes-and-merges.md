@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/reviewer-remove-merge
 repos: [greenharness-skills, grh]
 adrs: [ADR-0070]
@@ -51,7 +51,7 @@ The plan panel adds but rarely removes. The t00 audit found 62 add-only lines ag
 
 ## Phases
 - [x] Phase 1 — skill text: `parts/workflow/agents/plan-review-backend.md`, `parts/workflow/skills/plan-review/SKILL.md`. Checks: `scripts/check.sh` and `python3 -m unittest discover -s tests -v` pass. Check that `plan-apply` accepts a removal patch (empty `new_string`). One commit, one PR, merge on green.
-- [ ] Phase 2 — release the next free tag after checking `git tag` and the data-names plan (`v0.8.0` if free) (tag-release skill), then pin it in grh `catalog.toml` (`skills_version`, `skills_sha256` from the release's `SHA256SUMS`) in its own PR. Then install the new grh on this machine (do-all memory). Check that `~/.claude/agents/plan-review-backend.md` contains "Then subtract".
+- [x] Phase 2 — release the next free tag after checking `git tag` and the data-names plan (`v0.8.0` if free) (tag-release skill), then pin it in grh `catalog.toml` (`skills_version`, `skills_sha256` from the release's `SHA256SUMS`) in its own PR. Then install the new grh on this machine (do-all memory). Check that `~/.claude/agents/plan-review-backend.md` contains "Then subtract".
 
 ## Decision log
 - 2026-11-15 — Use the severity bracket plus a kind word, not a new bracket label, because greenpiste's `findings_of` and `record` validation reject unknown labels. A first-class kind is a later greenpiste change, not part of B3.
@@ -61,7 +61,7 @@ The plan panel adds but rarely removes. The t00 audit found 62 add-only lines ag
 
 ## Verification
 - Phase 1: `scripts/check.sh` → exit 0, with no `work.` or `ADR-` hit under `parts/` → observed: "25 check(s) passed", exit 0. `python3 -m unittest discover -s tests` → observed: "Ran 109 tests … OK". `grep -c "Then subtract" parts/workflow/agents/plan-review-backend.md` → observed: 1. `grep -c "×1.25" parts/workflow/skills/plan-review/SKILL.md` → observed: 2 (both in §4). `grep -n "Verdicts:.*words" parts/workflow/skills/plan-review/SKILL.md` → observed: 1 (§7). `plan-apply` with an empty `new_string` on a sandboxed copy → observed: "applied 1, unmatched 0", rc 0.
-- Phase 2: the release asset's sha256 equals the grh pin. After the install, `grep -c "Then subtract" ~/.claude/agents/plan-review-backend.md` prints 1.
+- Phase 2: the release asset's sha256 equals the grh pin. After the install, `grep -c "Then subtract" ~/.claude/agents/plan-review-backend.md` prints 1. → Observed: v0.8.0 asset sha256 191ad87a…c442 equals SHA256SUMS and the grh 0.6.1 pin (grh#41); after `brew upgrade` to grh 0.6.1 and `grh install workflow --yes`, the grep prints 1, and "body as presented" occurs 2× in the installed plan-review skill.
 - Live: the next plan panel run under it shows a §7 Verdicts line with words r1 → final. This is checked at the t10 done check, not here.
 
 ## Implementation review
@@ -69,5 +69,6 @@ The plan panel adds but rarely removes. The t00 audit found 62 add-only lines ag
 - implementation-review (opus, main session, tree 9f6881de47e3): approve, ~31k tokens, 29 s. One low finding was kept as deliberate: the template line's `[remove: |merge: ]` brackets could be copied literally. The prose and the examples at plan-review-backend.md:97-99 already show the bare word.
 
 ## Outcome
+Shipped: skills v0.8.0 (#23) and grh 0.6.1 (#41), installed here 2026-11-15. The backend seat now asks whom each phase and safeguard protects, which phases can go, and which slices merge. Plan-review §4 caps a round's growth at ×1.25 of the body as presented. Surprise: the implementation-review push hook counts only reviews launched from the pushing session, so a forked builder cannot push; the main session ran F4b and every push. Not yet seen: a live panel under the new text (the t10 done check).
 
 <!-- panel: repos=greenharness-skills,grh adds= reviewers=backend body-sha=3a7dc15edcc4 -->
