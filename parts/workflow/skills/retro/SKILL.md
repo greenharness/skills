@@ -38,7 +38,7 @@ jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_us
 
 Also read:
 - the greenpiste journal lines for the session: `grep ' <id8> '
-  ~/.claude/amont-agent/journal.log` (`<id8>` is the first 8 characters of
+  ~/.claude/greenpiste/journal.log` (`<id8>` is the first 8 characters of
   the session id; the 4th field is the stance: `deny`, `advise`, …);
 - `greenpiste mine`: mistake shapes that no rule names yet.
 

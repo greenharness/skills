@@ -200,7 +200,7 @@ below names one of them.
  . Offer to turn
   a lasting decision into an ADR in this same PR
  . Screenshots and raw output go
-  OUTSIDE the worktree (`~/.claude/amont-agent/attestations/<sha>/`).
+  OUTSIDE the worktree (`~/.claude/greenpiste/attestations/<sha>/`).
   They last 30 days unless a plan cites them as `attestations/<name>` or
   the directory holds a `.keep`; then they move to `.trash-<secs>-<name>`
   for 7 days (`greenpiste attestations` lists what stays and why).
@@ -350,7 +350,7 @@ below names one of them.
      recorded by the hook itself and in the plan as `deliberate:
      overruled — <reason>`; `Fix` returns to F1 and the next F4b is a
      fresh round 1; `Hold` stops without pushing.
-  - Never write under `~/.claude/amont-agent/implementation-review/`: the
+  - Never write under `~/.claude/greenpiste/implementation-review/`: the
     hook alone writes a pass file, and refuses a Write, Edit or Bash there.
 - **F5.** If the SHA to push differs from the verified tree in more than
   the plan commit, return to F2.
@@ -397,7 +397,7 @@ below names one of them.
      server on a free port and keep it up until the person answers.
   2. **Screenshots.** Take `before.jpg` from `origin/main`'s build or from a
      step taken earlier, and `after.jpg` from this commit, at the same route
-     and state. Put them in `~/.claude/amont-agent/attestations/<short-sha>/`,
+     and state. Put them in `~/.claude/greenpiste/attestations/<short-sha>/`,
      outside the worktree.
   3. **Write the guide** in that directory as `guide.md`, from
      [preview-guide-template.md](preview-guide-template.md). Fill every
@@ -430,7 +430,7 @@ below names one of them.
      journalled and audited.
   5. **Open the app for them in their own browser**: `greenpiste open
      '<url>'`, alone in its command (the machine's opener,
-     `amont.agent.opener`), with the URL
+     `greenpiste.opener`), with the URL
      deep-linked to the state step 1 of "Try it" reaches where a route or
      query can carry it. When the question in step 6 names this URL, the
      `ask-unopened-page` hook refuses it until this open ran. Never open the

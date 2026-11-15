@@ -60,8 +60,8 @@ adds that do not exist yet:
 ```
 
 - Repository names resolve under greenpiste's plan root
-  (`AMONT_AGENT_PLAN_ROOT`). A repository kept
-  elsewhere has `git config --global amont.agent.plan-review.<name>.path`
+  (`GREENPISTE_PLAN_ROOT`). A repository kept
+  elsewhere has `git config --global greenpiste.plan-review.<name>.path`
   set, for example `dotfiles` → `~/.local/share/chezmoi`.
 - `adds=` takes `cli`, `ui`, `screen`, `ops`, `contract` (`large` is its
   old name) or `lang:<language>`. It declares what no named file shows:
@@ -465,7 +465,7 @@ A warning seen again and again stops being read, so the prompt must stay
 rare. The hook cannot see how the person answers; the number it can give
 is how often it asked. Before the panel's usefulness is decided, count
 them:
-`grep -c 'plan-review-panel deny asked' ~/.claude/amont-agent/journal.log`.
+`grep -c 'plan-review-panel deny asked' ~/.claude/greenpiste/journal.log`.
 
 ## Skipping
 
