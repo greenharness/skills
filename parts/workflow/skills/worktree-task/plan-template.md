@@ -13,6 +13,7 @@ slug is the plan's H1 in kebab-case, five words at most.
 ```markdown
 ---
 status: active            # active | done | abandoned | imported
+plan-id: p-…              # copied from the plan-mode file; greenpiste plan-panel writes it
 branch: feat/<name>
 repos: [<this-repo>]      # every repository the plan touches
 adrs: []                  # records this plan adds or relies on
