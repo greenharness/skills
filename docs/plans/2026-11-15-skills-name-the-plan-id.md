@@ -18,4 +18,7 @@ Pointer: Phase 5 of the plan "Every plan gets an id, and the panel counts", whic
 ## Verification
 - `scripts/check.sh` exits 0; `python3 -m unittest discover -s tests` passes.
 
+## Implementation review
+- implementation-review (opus), round 1: approve-with-changes. Fixed: `plan-id` at worktree-task landing, with the §0 exception named; the `words:A/B` and `-` forms; the PR drop explained. Delta: approve-with-changes, wording only. Deliberate: the `-` sentence reads close to `words`.
+
 <!-- panel: repos=greenharness-skills body-sha=f1267bf8ce83 -->
