@@ -50,19 +50,22 @@ The plan panel adds but rarely removes. The t00 audit found 62 add-only lines ag
 - `plan-review` §7: the `**Verdicts:**` line also gives the word count, round 1 → final (×ratio), and the number of `remove` and `merge` findings accepted.
 
 ## Phases
-- [ ] Phase 1 — skill text: `parts/workflow/agents/plan-review-backend.md`, `parts/workflow/skills/plan-review/SKILL.md`. Checks: `scripts/check.sh` and `python3 -m unittest discover -s tests -v` pass. Check that `plan-apply` accepts a removal patch (empty `new_string`). One commit, one PR, merge on green.
+- [x] Phase 1 — skill text: `parts/workflow/agents/plan-review-backend.md`, `parts/workflow/skills/plan-review/SKILL.md`. Checks: `scripts/check.sh` and `python3 -m unittest discover -s tests -v` pass. Check that `plan-apply` accepts a removal patch (empty `new_string`). One commit, one PR, merge on green.
 - [ ] Phase 2 — release the next free tag after checking `git tag` and the data-names plan (`v0.8.0` if free) (tag-release skill), then pin it in grh `catalog.toml` (`skills_version`, `skills_sha256` from the release's `SHA256SUMS`) in its own PR. Then install the new grh on this machine (do-all memory). Check that `~/.claude/agents/plan-review-backend.md` contains "Then subtract".
 
 ## Decision log
 - 2026-11-15 — Use the severity bracket plus a kind word, not a new bracket label, because greenpiste's `findings_of` and `record` validation reject unknown labels. A first-class kind is a later greenpiste change, not part of B3.
 - 2026-11-15 — The ×1.25 bar on words, not phases, because t00 found that reviews add phases rarely (3 of 23) but words at ×1.59 (t01 resolution 1).
-
-- 2026-11-15 — No new test pin for the added phrases, after accepting it in round 1: naming the Python test file seats three more reviewers (python, tui, unix) for two phrases the Verification greps already check, and the existing pin test still guards SKILL.md.
+- 2026-11-15 — No new test pin for the added phrases: the test-pin finding was accepted in round 1, then reversed, because naming the Python test file seats three more reviewers (python, tui, unix) for two phrases the Verification greps check once, at release. The existing pin test still guards SKILL.md.
+- 2026-11-15 — `plan-apply` accepts an empty `new_string` (checked on a sandboxed copy, applied, rc 0), so no follow-up is needed for a removal patch.
 
 ## Verification
-- Phase 1: `scripts/check.sh` → exit 0, with no `work.` or `ADR-` hit under `parts/`. `grep -n "Then subtract" parts/workflow/agents/plan-review-backend.md` finds 1 line, and `grep -n "×1.25" parts/workflow/skills/plan-review/SKILL.md` finds at least 2 (§4 and §7).
+- Phase 1: `scripts/check.sh` → exit 0, with no `work.` or `ADR-` hit under `parts/` → observed: "25 check(s) passed", exit 0. `python3 -m unittest discover -s tests` → observed: "Ran 109 tests … OK". `grep -c "Then subtract" parts/workflow/agents/plan-review-backend.md` → observed: 1. `grep -c "×1.25" parts/workflow/skills/plan-review/SKILL.md` → observed: 2 (both in §4). `grep -n "Verdicts:.*words" parts/workflow/skills/plan-review/SKILL.md` → observed: 1 (§7). `plan-apply` with an empty `new_string` on a sandboxed copy → observed: "applied 1, unmatched 0", rc 0.
 - Phase 2: the release asset's sha256 equals the grh pin. After the install, `grep -c "Then subtract" ~/.claude/agents/plan-review-backend.md` prints 1.
 - Live: the next plan panel run under it shows a §7 Verdicts line with words r1 → final. This is checked at the t10 done check, not here.
+
+## Implementation review
+- backend (opus, round 1): approve; one low finding, the §7 grep, fixed above by checking `Verdicts:.*words`. ~27k tokens, ~14 s. No findings kept as deliberate. Watch: the 350-word cap on backend output may tighten with the added "Then subtract" list.
 
 ## Outcome
 
