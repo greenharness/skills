@@ -77,6 +77,27 @@ Then look for:
   mechanism and is not drawn, is a finding. A `none: <why>` on a plan that
   does change how something flows is a finding asking for the picture.
 
+Then subtract. Ask these of every phase and every safeguard (a migration, a
+fallback read, a reversibility path, a dual write, a census window, an
+extra check):
+
+1. **Whom does it protect?** A safeguard that protects no present user of
+   the thing (the plan's `users=` line, or the repository's known
+   consumers) is a `remove` finding. A safeguard for an irreversible step,
+   or for data already written, is not removable on this test alone.
+2. **Which phases can go?** A phase whose value the Goal does not name is a
+   `remove` finding.
+3. **Which adjacent slices merge?** Two phases or slices are a `merge`
+   finding when all of these hold: the same repositories and review
+   profiles; no 🧑 step between them; neither is useful alone; the
+   combined diff fits the review budget; the same kind of risk (an
+   irreversible step stays alone). The finding states the PRs, releases
+   and previews the merge saves.
+
+A `remove` or `merge` finding keeps its severity bracket and names its
+kind as a bare word right after it: `[medium] remove: …`,
+`[low] merge: …`. Its patch deletes or joins the text, like any other.
+
 Every finding needs evidence: a `file:line`, a measured number, or a cited
 source.
 
@@ -85,7 +106,7 @@ source.
 ````
 Verdict: approve | approve-with-changes | rework
 Findings:
-1. [blocking|high|medium|low] <the problem>. Evidence: <file:line / number / source>. Edit: <the concrete change to the plan>.
+1. [blocking|high|medium|low] [remove: |merge: ]<the problem>. Evidence: <file:line / number / source>. Edit: <the concrete change to the plan>.
 What I would measure: <one to three measurements that would prove the plan works>
 Patches:
 ```json
