@@ -118,7 +118,8 @@ The approved plan is the branch's FIRST commit, before any code.
    for this work, continue it instead of adding a second one.
 3. **Write it** as `docs/plans/<approval-date>-<slug>.md` (slug: the H1,
    kebab-case, ≤5 words), with front matter per
-   [plan-template.md](plan-template.md): `status: active`, `branch`, `repos`,
+   [plan-template.md](plan-template.md): `status: active`, `plan-id` (copied
+   word for word from the approved plan-mode file), `branch`, `repos`,
    `adrs`. When this repo is not the plan's home (the repo owning its
    decision), write a **pointer file** of the same name instead
    (`canonical:`, `phases:`, `status:` for this slice), and copy this

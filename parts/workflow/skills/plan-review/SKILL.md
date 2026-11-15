@@ -45,7 +45,8 @@ never a loop.
 **The plan id.** `greenpiste plan-panel` gives the plan a `plan-id:` line in
 its front matter the first time it runs, and a fresh one once the person has
 approved that id. Never write, copy or edit `plan-id:` by hand, not even
-into a new plan written over an old file: the id is how the ledger, the panel
+into a new plan written over an old file (worktree-task's landing step is
+the one exception: it copies the line word for word into the landed plan): the id is how the ledger, the panel
 and `stats --time` tell one plan from the next in a reused plan file. After
 `plan-panel` runs, re-read the file before the next Edit (it may have
 written the front matter). A plan-panel that prints `ledger busy` or
@@ -129,7 +130,8 @@ greenpiste plan-panel <plan.md>
 The first line reads `repos=… areas=… body=<12> panel=full|delta|current
 seats=paths|areas counts=…`, then one agent per line; `counts=` is one
 token (`repos:3,phases:6,prs:3,releases:2,person:2,words:3100,merge-candidates:2+3;5+6`),
-the plan's size for step 7 and for the backend seat; `areas=` lists the classes the
+the plan's size for step 7 and for the backend seat. `words:A/B` is the
+body now and at round 1 (read it as `A words`); a `-` value counts as zero; `areas=` lists the classes the
 seats came from. That list is exactly what the hook will require;
 launch that list, no more and no fewer. `panel=current` means nothing
 changed since the last accepted body: go to step 7.
@@ -397,7 +399,9 @@ Writing these never changes the body's sha, so the reviews stay bound.
        Leave out a zero count, and use the singular for 1.
      - Stay within about 20 words by dropping, in order: `words`, merge
        candidates, PRs when equal to the repository count, then the list of
-       repositories (for `N repos`) when there are more than three.
+       repositories (for `N repos`) when there are more than three. PRs
+       equal to the repository count are the usual case, so the example
+       leaves them out.
      - For example
        `📍 my-app · 6 phases · 2 releases · next: Phase 1. Panel: backend (fable-5-1), tui (sonnet-5-5), codex (gpt-6-astra).`,
        or once work has shipped,
