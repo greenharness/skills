@@ -66,6 +66,7 @@ The plan panel adds but rarely removes. The t00 audit found 62 add-only lines ag
 
 ## Implementation review
 - backend (opus, round 1): approve; one low finding, the §7 grep, fixed above by checking `Verdicts:.*words`. ~27k tokens, ~14 s. No findings kept as deliberate. Watch: the 350-word cap on backend output may tighten with the added "Then subtract" list.
+- implementation-review (opus, main session, tree 9f6881de47e3): approve, ~31k tokens, 29 s. One low finding was kept as deliberate: the template line's `[remove: |merge: ]` brackets could be copied literally. The prose and the examples at plan-review-backend.md:97-99 already show the bare word.
 
 ## Outcome
 
