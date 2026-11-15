@@ -39,8 +39,8 @@ guessing.
    evidence, `png` otherwise. Open one with `Read` only when a question needs
    your eyes on it.
    Then move them out of the tree: `mkdir -p
-   ~/.claude/amont-agent/attestations/<sha> && mv .browser-check/<sha>/*
-   ~/.claude/amont-agent/attestations/<sha>/`. Done when `ls .browser-check/<sha>`
+   ~/.claude/greenpiste/attestations/<sha> && mv .browser-check/<sha>/*
+   ~/.claude/greenpiste/attestations/<sha>/`. Done when `ls .browser-check/<sha>`
    is empty and every path you report exists.
 3. Check the console and failed network requests once at the end, and report
    errors and warnings verbatim (first 10).
