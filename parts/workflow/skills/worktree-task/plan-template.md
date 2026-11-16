@@ -13,7 +13,7 @@ slug is the plan's H1 in kebab-case, five words at most.
 ```markdown
 ---
 status: active            # active | done | abandoned | imported
-plan-id: p-…              # copied from the plan-mode file; greenpiste plan-panel writes it
+plan-id: p-…              # copied from the plan-mode file; greenbelay plan-panel writes it
 branch: feat/<name>
 repos: [<this-repo>]      # every repository the plan touches
 adrs: []                  # records this plan adds or relies on
@@ -29,7 +29,7 @@ What this deliberately leaves alone.
 ## Code review
 The expert profiles that review the code at the close, beside
 implementation-review: one line per repository, from
-`greenpiste plan-panel --code-review`.
+`greenbelay plan-panel --code-review`.
 - <repo>: backend, lang:<language>, unix (tui left out: <reason>)
 - <other-repo>: none — <reason>
 
@@ -118,7 +118,7 @@ Part of [<title>](<link to the canonical plan>).
 
 The `## Code review` section holds only this repository's line, copied
 verbatim from the canonical plan's section. The push gate reads it from the
-branch (greenpiste 3.14.0), so the declaration is versioned with the commit
+branch, so the declaration is versioned with the commit
 and an approval from the session carries. The section must declare this
 repository, either profiles or `none — <reason>`; an empty one, one that
 names only other repositories, or one that does not parse holds the push. A pointer without the section

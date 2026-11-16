@@ -1,16 +1,13 @@
 ---
 name: plan-review
-description: Run the expert review panel on a plan before ExitPlanMode, and again as a delta after the person asks for a change. Use in plan mode every time a plan is about to be presented. The greenpiste plan-review-panel hook refuses a plan whose panel did not run.
+description: Run the expert review panel on a plan before ExitPlanMode, and again as a delta after the person asks for a change. Use in plan mode every time a plan is about to be presented. The greenbelay plan-review-panel hook refuses a plan whose panel did not run.
 ---
 
 # plan-review
 
 Every plan is reviewed by a panel of experts **before** the person sees it.
-The panel follows what the plan touches, and greenpiste computes it, never
-from keywords. With a greenpiste older than 3.22.0
-(`greenpiste --version`), only the area table below holds, and `adds=`
-takes the values it took then: `cli`, `ui`, `ops`, `large`,
-`lang:<language>`.
+The panel follows what the plan touches, and greenbelay computes it, never
+from keywords.
 
 When every phase of the plan names, in backticks, the files it touches,
 the seats come from those files' types:
@@ -42,7 +39,7 @@ never a loop.
 
 ## 0. The machine comment
 
-**The plan id.** `greenpiste plan-panel` gives the plan a `plan-id:` line in
+**The plan id.** `greenbelay plan-panel` gives the plan a `plan-id:` line in
 its front matter the first time it runs, and a fresh one once the person has
 approved that id. Never write, copy or edit `plan-id:` by hand, not even
 into a new plan written over an old file (worktree-task's landing step is
@@ -59,9 +56,9 @@ adds that do not exist yet:
 <!-- panel: repos=amont-agent,decisions adds=ui -->
 ```
 
-- Repository names resolve under greenpiste's plan root
-  (`GREENPISTE_PLAN_ROOT`). A repository kept
-  elsewhere has `git config --global greenpiste.plan-review.<name>.path`
+- Repository names resolve under greenbelay's plan root
+  (`GREENBELAY_PLAN_ROOT`). A repository kept
+  elsewhere has `git config --global greenbelay.plan-review.<name>.path`
   set, for example `dotfiles` → `~/.local/share/chezmoi`.
 - `adds=` takes `cli`, `ui`, `screen`, `ops`, `contract` (`large` is its
   old name) or `lang:<language>`. It declares what no named file shows:
@@ -94,7 +91,7 @@ expert profiles review the code at the branch's close (worktree-task F4b),
 beside implementation-review. Propose it with
 
 ```sh
-greenpiste plan-panel --code-review <plan.md>
+greenbelay plan-panel --code-review <plan.md>
 ```
 
 which prints, per repository, `<repo><TAB><profiles>`, or
@@ -124,7 +121,7 @@ that fails on model availability follows the `agent-model-fallback` skill.
 ## 1. What to run
 
 ```sh
-greenpiste plan-panel <plan.md>
+greenbelay plan-panel <plan.md>
 ```
 
 The first line reads `repos=… areas=… body=<12> panel=full|delta|current
@@ -170,12 +167,11 @@ go, about 40–80k per reviewer.
    review, `--slice <role>` for a seat bound to its slice):
 
    ```sh
-   greenpiste plan-sha --block [--lang rust] [--slice lang:rust] <plan.md>
+   greenbelay plan-sha --block [--lang rust] [--slice lang:rust] <plan.md>
    ```
 
    With `--slice` it prints two lines: the block, and `Your slice: …`,
-   which tells the reviewer which phases are its own. A greenpiste older
-   than 3.23.0 prints no `--slice` in `plan-panel`; run the plain block then.
+   which tells the reviewer which phases are its own.
 
 3. Launch **all** the agents in ONE message, in parallel. Each prompt
    carries, in this order:
@@ -223,12 +219,11 @@ edits cost more of the session's context than the four reviews they applied.
 - Record the round, BEFORE the plan is edited (it saves the reviewed body
   only while the file still holds it), with one object per finding on
   stdin; `section` is the plan heading it is about, `area` one of
-  cli|ui|screen|ops|contract|lang:<x> (`large` with a greenpiste older
-  than 3.22.0) when it is clear:
+  cli|ui|screen|ops|contract|lang:<x> when it is clear:
 
   ```sh
   echo '[{"role":"tui","severity":"high","disposition":"accepted","section":"Behaviour","area":"cli"}]' \
-    | greenpiste plan-review record <plan.md>
+    | greenbelay plan-review record <plan.md>
   ```
 
   It prints `wrote N rows (round R, plan <sha12>)`. Exit 1 (ledger or a
@@ -240,7 +235,7 @@ edits cost more of the session's context than the four reviews they applied.
 
   ```sh
   echo '[{"role":"tui","finding":1},{"role":"unix","finding":3}]' \
-    | greenpiste plan-apply <plan.md>
+    | greenbelay plan-apply <plan.md>
   ```
 
   It prints `applied tui#1 <section>` or `unmatched tui#3: <reason>` per
@@ -264,27 +259,27 @@ edits cost more of the session's context than the four reviews they applied.
 
     ```sh
     echo '[{"role":"tui","finding":3,"patch":{"old_string":"…","new_string":"…"}}]' \
-      | greenpiste plan-apply <plan.md>
+      | greenbelay plan-apply <plan.md>
     ```
 
   - otherwise (more or larger `absent` findings) ONE `general-purpose`
     subagent, in the foreground, with
     `model: "sonnet"` on the call. Its prompt starts with the `<<<APPLY …>>>`
     block verbatim, then the unmatched findings with their evidence and
-    edit, and ends with: run `greenpiste plan-apply --check <plan>` with
+    edit, and ends with: run `greenbelay plan-apply --check <plan>` with
     the findings on stdin as the last command and return its output only.
     `sonnet` is a preference, not a pin: relais's router keeps it when
     routing is off or abstains, and overrides it when its table decides.
     If the call fails because `sonnet` is unavailable, follow
     `agent-model-fallback`: one relaunch with no `model`, and only when
-    `greenpiste plan-sha --short <plan>` still prints the sha it printed
+    `greenbelay plan-sha --short <plan>` still prints the sha it printed
     before the launch. A changed plan means edits landed: do not relaunch
     (it would apply them twice); make it a 👉 decision.
   After the subagent, record what it did (it finds the launch by the
   `<<<APPLY` block, so this is the subagent path only):
 
   ```sh
-  echo '[{"role":"tui","finding":3}]' | greenpiste plan-apply --record-fallback <plan.md>
+  echo '[{"role":"tui","finding":3}]' | greenbelay plan-apply --record-fallback <plan.md>
   ```
 
   Exit 1 (no transcript, ledger) is reported in one line and never stops
@@ -300,12 +295,12 @@ Re-run the reviewers whose verdict was `rework`, plus
 **`plan-review-backend` always**, plus every seat `plan-panel` names that
 the edits made stale. Backend must bind the FINAL body, because the hook
 requires it: every edit to the body after backend's review makes backend
-stale. A seat bound to its slice (greenpiste 3.23.0) is stale only when an
+stale. A seat bound to its slice is stale only when an
 edit touched its slice; then the hook names it, with the span that moved.
 
 1. Post: `📍 <project>: round 2, re-running <names>, about 2 min.`
    Returns use the same `k/N returned:` line.
-2. Get fresh blocks: re-run `greenpiste plan-panel <plan.md>` and use the
+2. Get fresh blocks: re-run `greenbelay plan-panel <plan.md>` and use the
    flags each seat's line now ends with (a seat can gain or lose its slice
    with an edit). The sha changed with the edits.
 3. Each prompt carries:
@@ -321,8 +316,7 @@ edit touched its slice; then the hook names it, with the span that moved.
 A round-1 reviewer may be resumed with `SendMessage` instead of a fresh
 launch. The hook counts the resumed round once the message STARTS with the
 new `<<<PLAN path=… sha=…>>>` block (for a sliced seat, the block's two
-stdout lines) and the agent's reply has completed
-(greenpiste ≥ 3.16.1). A message without the block binds nothing, so the
+stdout lines) and the agent's reply has completed. A message without the block binds nothing, so the
 reviewer stays stale.
 
 After round 2, only a `high` or blocking finding may change the body. A
@@ -434,9 +428,9 @@ After ExitPlanMode is rejected with feedback:
    object under `role: "person"` when small, else the Sonnet subagent, with
    the person's words as the accepted line; there is no reviewer patch for
    it.
-2. Run `greenpiste plan-panel <plan.md>`. It prints `panel=delta`, with
+2. Run `greenbelay plan-panel <plan.md>`. It prints `panel=delta`, with
    backend plus the reviewers of any area that is new, plus every seat
-   bound to a slice that the change touched (greenpiste 3.23.0).
+   bound to a slice that the change touched.
 3. Launch those once. Each prompt carries:
    - the block's stdout lines (two with `--slice`);
    - `Delta.`;
@@ -447,16 +441,16 @@ After ExitPlanMode is rejected with feedback:
 
    A reviewer from the same session may be resumed with `SendMessage`
    instead: the message starts with the fresh block and carries the same
-   items; it counts once the reply completes (greenpiste ≥ 3.16.1).
+   items; it counts once the reply completes.
 4. A `rework` from them becomes a 👉 decision, never a re-run.
 5. Update the review section, then call ExitPlanMode.
 
 ## If the hook refuses
 
 The refusal names what is missing (`missing for repos=X: <roles>`) or stale
-(`stale (reviewed an older body)`), and, with greenpiste 3.23.0, a seat
+(`stale (reviewed an older body)`), and a seat
 bound to its slice that must re-run:
-``stale (its slice changed: Phase 2) for repos=X: <role>; re-run: `greenpiste plan-sha --block … --slice <role> <plan.md>` ``,
+``stale (its slice changed: Phase 2) for repos=X: <role>; re-run: `greenbelay plan-sha --block … --slice <role> <plan.md>` ``,
 or `its slice changed: the order of its phases`, `it has a new slice`, or
 `it now binds the whole body`. Run exactly those, each block with the
 command between the backticks as printed, then present again.
@@ -469,7 +463,7 @@ A warning seen again and again stops being read, so the prompt must stay
 rare. The hook cannot see how the person answers; the number it can give
 is how often it asked. Before the panel's usefulness is decided, count
 them:
-`grep -c 'plan-review-panel deny asked' ~/.claude/greenpiste/journal.log`.
+`grep -c 'plan-review-panel deny asked' ~/.claude/greenbelay/journal.log`.
 
 ## Skipping
 
