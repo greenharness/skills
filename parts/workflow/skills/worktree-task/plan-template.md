@@ -55,6 +55,17 @@ area the repositories have.
 - [ ] 🧑 decision: <question the person answers, with 2–4 options>
 - [ ] Phase 2 — … `CHANGELOG.md`
 
+### 🧑 Your steps
+- `<the exact command or action>` — because <why the agent cannot run it>
+
+Only what the agent cannot run goes here: a plugin reinstall, a restart of
+Claude Code or a coordinator, a one-time password, a secret, a browser
+click, a trust grant at a real terminal, `sudo`. One plain `- ` bullet per
+step, never a `- [ ]` checkbox, the command alone in backticks so a copy
+takes only it. Leave the heading out when there are none. The block is
+neither a phase nor a decision; `plan-panel` counts it as `steps:`. A
+`Phase N` item written after it still counts as a phase.
+
 What no file shows goes in the machine comment the `plan-review` skill
 adds: `adds=contract` when the plan adds a module, crate or repository, or
 changes a contract another repository consumes (architect and product

@@ -129,8 +129,11 @@ greenpiste plan-panel <plan.md>
 
 The first line reads `repos=… areas=… body=<12> panel=full|delta|current
 seats=paths|areas counts=…`, then one agent per line; `counts=` is one
-token (`repos:3,phases:6,prs:3,releases:2,person:2,words:3100,merge-candidates:2+3;5+6`),
-the plan's size for step 7 and for the backend seat. `words:A/B` is the
+token (`repos:3,phases:6,prs:3,releases:2,person:2,words:3100,steps:2,merge-candidates:2+3;5+6`),
+the plan's size for step 7 and for the backend seat. Read `counts=` by key
+name: a new key goes before `merge-candidates`, which stays the last comma
+field. `steps:` counts the actions only the person can run; decisions stay
+in `person:`. `words:A/B` is the
 body now and at round 1 (read it as `A words`); a `-` value counts as zero; `areas=` lists the classes the
 seats came from. That list is exactly what the hook will require;
 launch that list, no more and no fewer. `panel=current` means nothing
@@ -395,8 +398,9 @@ Writing these never changes the body's sha, so the reviews stay bound.
      each role with the model it ran on (one model named once when every
      seat ran on it), and Codex last.
      - The counts come from `counts=` and read `6 phases`, `3 PRs`,
-       `2 releases`, `2 steps for you`, `2 merge candidates`, `3100 words`.
-       Leave out a zero count, and use the singular for 1.
+       `2 releases`, `2 decisions` (from `person:`), `2 steps for you` (from
+       `steps:`, the actions only the person can run), `2 merge candidates`,
+       `3100 words`. Leave out a zero count, and use the singular for 1.
      - Stay within about 20 words by dropping, in order: `words`, merge
        candidates, PRs when equal to the repository count, then the list of
        repositories (for `N repos`) when there are more than three. PRs

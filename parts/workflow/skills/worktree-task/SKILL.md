@@ -496,6 +496,23 @@ below names one of them.
      removed in step 1 included. See the `worktree-sweep` skill.
   3. In the report, say what was removed and what the sweep kept, one line
      each.
+  4. End the report with the plan's `### 🧑 Your steps` block, as its last
+     lines, under `Your steps (the agent cannot run these):`, one numbered
+     line per step in the form ``N. `command` — because <why>``.
+     - **Which plan.** For a pointer plan (`canonical:`), read the block from
+       the plan `canonical:` names: a pointer never holds it.
+     - **When.** Read it before step 1 removes the worktree, or later with
+       `git show <branch>:<plan path>`; a PR F9 left open has the plan only
+       on its branch.
+     - **What counts**, as `plan-panel` counts it: each top-level `- ` line
+       of the block is a step, a `- [ ]` line included; a `* ` bullet and an
+       indented line are not. Skip fenced lines. The block stops at the next
+       heading, or at a `Phase N` or 🧑 decision item. The number of lines
+       you print equals `plan-panel`'s `steps:N` for that plan.
+     - With no block, or an empty one, the last line is `Your steps: none.`
+       When the plan cannot be read (a missing file, or a `git show` that
+       fails), print `Your steps: unknown (plan not readable at <path>)`,
+       never `none`.
 
 - One implementation pull request per repo per plan; F9 merges it with the `merge-when-green` skill. That skill's step 6 fast-forwards the live checkout after the merge, so this finish does not touch it: before the merge there is nothing new on `origin/main` to bring in.
 - A release (`tag-release`) ends with the same sweep, because a worktree becomes sweepable only once its PR is in a release tag.
