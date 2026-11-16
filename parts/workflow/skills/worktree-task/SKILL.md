@@ -509,9 +509,10 @@ below names one of them.
        indented line are not. Skip fenced lines. The block stops at the next
        heading, or at a `Phase N` or 🧑 decision item. The number of lines
        you print equals `plan-panel`'s `steps:N` for that plan.
-     - With no block, the last line is `Your steps: none.` When the plan
-       cannot be read, print `Your steps: unknown (plan not readable at
-       <path>)`, never `none`.
+     - With no block, or an empty one, the last line is `Your steps: none.`
+       When the plan cannot be read (a missing file, or a `git show` that
+       fails), print `Your steps: unknown (plan not readable at <path>)`,
+       never `none`.
 
 - One implementation pull request per repo per plan; F9 merges it with the `merge-when-green` skill. That skill's step 6 fast-forwards the live checkout after the merge, so this finish does not touch it: before the merge there is nothing new on `origin/main` to bring in.
 - A release (`tag-release`) ends with the same sweep, because a worktree becomes sweepable only once its PR is in a release tag.
