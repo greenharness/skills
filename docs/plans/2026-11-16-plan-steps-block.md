@@ -11,3 +11,10 @@ the template block, the finish report, and the `plan-review` counts line.
 
 ## Code review
 - greenharness-skills: backend
+
+## Verification
+- Template: a plan extracted from the edited template → greenpiste 5.1.0
+  `plan-panel` gives `phases:2`, `person:1`, `steps:1`.
+- Finish: a plan with steps `a`, `b` → the report's last lines are the two
+  numbered steps; a plan with no block → `Your steps: none.`; a pointer plan
+  → the steps of the plan its `canonical:` names.

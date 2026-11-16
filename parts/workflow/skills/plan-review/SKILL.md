@@ -130,6 +130,9 @@ greenpiste plan-panel <plan.md>
 The first line reads `repos=… areas=… body=<12> panel=full|delta|current
 seats=paths|areas counts=…`, then one agent per line; `counts=` is one
 token (`repos:3,phases:6,prs:3,releases:2,person:2,words:3100,steps:2,merge-candidates:2+3;5+6`),
+read by key name: a new key goes before `merge-candidates`, which stays the
+last comma field. `steps:` counts the actions only the person can run;
+decisions stay in `person:`.
 the plan's size for step 7 and for the backend seat. `words:A/B` is the
 body now and at round 1 (read it as `A words`); a `-` value counts as zero; `areas=` lists the classes the
 seats came from. That list is exactly what the hook will require;
