@@ -496,6 +496,13 @@ below names one of them.
      removed in step 1 included. See the `worktree-sweep` skill.
   3. In the report, say what was removed and what the sweep kept, one line
      each.
+  4. End the report with the landed plan's `### 🧑 Your steps` block, as its
+     last lines, under `Your steps (the agent cannot run these):`, one
+     numbered line per step in the form ``N. `command` — because <why>``.
+     With no block, the last line is `Your steps: none.` Read the block as
+     `plan-panel` does: skip fenced lines, and stop at the next heading or
+     `Phase N` or 🧑 decision item. The number of lines you print equals
+     `plan-panel`'s `steps:N` for that plan.
 
 - One implementation pull request per repo per plan; F9 merges it with the `merge-when-green` skill. That skill's step 6 fast-forwards the live checkout after the merge, so this finish does not touch it: before the merge there is nothing new on `origin/main` to bring in.
 - A release (`tag-release`) ends with the same sweep, because a worktree becomes sweepable only once its PR is in a release tag.
