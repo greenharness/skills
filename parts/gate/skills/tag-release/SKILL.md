@@ -61,9 +61,8 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    On amont 2.0 a `v*` tag always goes through `amont land --tag`: only it
    runs the release audits on the tagged commit, so a bare tag push is
    refused whatever was stamped before. Unlike a branch, a tag has no bare
-   fallback there. Where a greenbelay older than
-   2.41 holds the land, upgrade greenbelay; with no greenbelay there is no
-   guard, and the land runs as written.
+   fallback there. With no greenbelay there is no guard, and the land runs
+   as written.
 
    **Below amont 2.0, or without amont**, push the tag instead with:
    ```bash

@@ -171,8 +171,7 @@ go, about 40–80k per reviewer.
    ```
 
    With `--slice` it prints two lines: the block, and `Your slice: …`,
-   which tells the reviewer which phases are its own. A greenbelay older
-   than 3.23.0 prints no `--slice` in `plan-panel`; run the plain block then.
+   which tells the reviewer which phases are its own.
 
 3. Launch **all** the agents in ONE message, in parallel. Each prompt
    carries, in this order:
@@ -220,8 +219,7 @@ edits cost more of the session's context than the four reviews they applied.
 - Record the round, BEFORE the plan is edited (it saves the reviewed body
   only while the file still holds it), with one object per finding on
   stdin; `section` is the plan heading it is about, `area` one of
-  cli|ui|screen|ops|contract|lang:<x> (`large` with a greenbelay older
-  than 3.22.0) when it is clear:
+  cli|ui|screen|ops|contract|lang:<x> when it is clear:
 
   ```sh
   echo '[{"role":"tui","severity":"high","disposition":"accepted","section":"Behaviour","area":"cli"}]' \

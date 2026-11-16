@@ -37,7 +37,7 @@ greenbelay board --repo <repo> --fetch
   only when no other session already works this change.
 - A commit under "just landed" that already does this task: stop and tell
   the person.
-- When `greenbelay board --help` fails (greenbelay absent or older), run
+- When `greenbelay board --help` fails (greenbelay absent), run
   `git log --oneline HEAD..origin/<default>` instead and say the board is a
   gap.
 - Done when every overlap has a next action, or the output names none.
@@ -126,8 +126,8 @@ The approved plan is the branch's FIRST commit, before any code.
    repository's line from the canonical plan's `## Code review` section
    into the pointer's own `## Code review` section, verbatim.
 4. **Check its review**, before writing it:
-   - **No `## Review panel` heading** (a plan from before greenbelay
-     2.22.0, or one the person had skipped): land it as it is, with a
+   - **No `## Review panel` heading** (an old plan, or one the person had
+     skipped): land it as it is, with a
      one-line note in its Decision log.
    - **The section is there:** the last line must be the machine comment
      with a `body-sha`. If it is not, refuse; never treat the plan as
@@ -144,8 +144,7 @@ The approved plan is the branch's FIRST commit, before any code.
      `📄 Full reviews:` line inside `## Review panel`, which is outside
      the reviewed body.
    - **Check the landed copy:** `greenbelay plan-sha --short <landed>`
-     must still equal `body-sha`. Since 2.22.1, `plan-sha` skips front
-     matter.
+     must still equal `body-sha`: `plan-sha` skips front matter.
    - **A linked picture** (`.svg` or `.html` in its `## Picture`): copy
      each file from beside the approved source into `docs/plans/` under
      the same name, byte for byte, refusing if a different file of that
