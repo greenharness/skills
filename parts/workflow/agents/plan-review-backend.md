@@ -29,8 +29,7 @@ First, before anything else, check what the plan declares. The brief's
 `contract` seats the architect and product owner, `screen` the UX research
 and game UX seats, and nothing else does. The values that exist are `cli`,
 `ui`, `screen`, `ops`, `contract` and `lang:<language>`; no other value
-exists (on a greenpiste older than 3.22.0, `large` in place of
-`contract`, and no `screen`).
+exists.
 
 1. `areas=` has no `contract`, and the plan adds a module, crate or
    repository, or changes a contract another repository consumes (an API,
@@ -61,14 +60,13 @@ Then look for:
 - verification: every Verification entry must be an observable check
   (input → expected → actual). "Tests pass" is not a check;
 - areas the plan creates without declaring them: the brief lists the
-  detected areas (language, ui, ops, cli, contract, or `large` on an
-  greenpiste older than 3.22.0). A plan adding a CLI, an
+  detected areas (language, ui, ops, cli, contract). A plan adding a CLI, an
   interface or infrastructure that is not in that list and not in its
   `adds=` is a blocking finding. Name the `adds=` value it needs, one of
   the values above;
 - the `## Code review` section: it exists in the body, has one line for
   every repository the plan touches, and each profile left out of what
-  `greenpiste plan-panel --code-review` proposes carries a reason that
+  `greenbelay plan-panel --code-review` proposes carries a reason that
   holds for this change. A missing section, a missing repository or a
   reason that does not hold is a finding, with the line it needs;
 - the `## Picture` section, when the plan has one: the picture (and the
@@ -115,7 +113,7 @@ Patches:
 ```
 ````
 
-`Patches:` carries every finding's `Edit:` as a pair `greenpiste plan-apply`
+`Patches:` carries every finding's `Edit:` as a pair `greenbelay plan-apply`
 applies with no model: `old_string` is copied from the plan verbatim and must
 occur exactly once (widen it to the surrounding lines until it does), several
 edits for one finding are several objects, and a finding with no edit (a

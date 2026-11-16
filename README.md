@@ -15,7 +15,7 @@ The router part (relais) places its own skill and agents, so it can install
 without grh.
 
 Several skills drive harness commands: `plan-review` and `worktree-task` call
-guardrails (`greenpiste`) and gate (`greengate`), which is why `workflow` needs
+guardrails (`greenbelay`) and gate (`greengate`), which is why `workflow` needs
 both parts.
 
 ## Layout
