@@ -217,6 +217,85 @@ being asked, makes the agent:
      first act is to note in t04's Resolution that it was printed and that
      the plugin relayed it, as a one-line commit on t05's branch.
 
+### Observed (2026-11-17, before the push)
+
+- `sh scripts/check.sh` at f6d736d: exit 0 expected, exit 0 seen.
+- `cargo test -p relais --lib install::` (via `greenbelay quiet`) at
+  d0ddbef4: a pass expected, `ok 363.5s` seen. The later relais commits
+  change only that SKILL.md's fallback bullet, and the pre-commit gate
+  passed on each one.
+- `grep -o 'safe to /clear; next: `[^`]*`'`, run on every file that
+  carries the line: worktree-task, tag-release and programme expected; each
+  printed the line once (worktree-task and tag-release with `<prompt>`,
+  programme with `<the next session's first prompt>`).
+- The append from a detached linked worktree, `/tmp/t04-scratch/inbox-test.sh`:
+  expected to land in the common `.git`; seen at `r/.git/greenharness/inbox.md`,
+  a 54-byte line.
+- The take with appends running, in the same script: 2 appenders of 300 lines
+  each, while 10 takes file one session. Expected 10 filed, 600 kept,
+  0 duplicates and no `.filing` left; seen exactly that.
+- Under zsh 5.9:
+  - a text holding `'`, `$HOME` and backticks was stored literally;
+  - the take name was unique (`inbox.3571e691.62624.filing`);
+  - `find -mtime +0` listed 0 of a fresh take;
+  - outside a repository, the chain stopped before the append.
+- The take as two separate tool calls, with an inbox stamped 2026-11-14:
+  - call 1 took it, touched it and printed its path;
+  - in call 2, another session's `find -mtime +0` listed 0 (0 expected);
+  - deleting by the printed path left nothing behind.
+- The live proof runs at Phase 3, recorded in t04's Resolution.
+
+## Implementation review
+
+- greenharness-skills, implementation-review: approve-with-changes, then
+  approve-with-changes in the Delta, then approve (699c905). Fixed:
+  - reading another session's take while it was still being filed;
+  - the `Your steps: none` line;
+  - dating the take with `touch`;
+  - `$$` changing between tool calls.
+
+  About 101k tokens, 118 s.
+- greenharness-skills, unix: approve-with-changes, then
+  approve-with-changes in the Delta, then approve. Fixed:
+  - the chained `rev-parse`;
+  - a unique take name;
+  - the single-quoted text;
+  - `find` in place of a glob;
+  - variables set again in each command;
+  - the take's mtime and printed path.
+
+  About 81k tokens, 88 s.
+- relais, implementation-review: approve-with-changes, then
+  approve-with-changes in the Delta, then approve (fa5bdc2). Fixed:
+  - the fallback now spells out the session8 cut, orphans and the take;
+  - the inbox path is absolute;
+  - it covers every repository touched.
+
+  About 112k tokens, 95 s.
+
+## Decision log
+
+- 2026-11-17, from review: "no PR of its own is open" became an in-flight
+  condition. A PR that F9 left waiting on `merge-after:` gets a handoff
+  but no line. tag-release's fallback checks the same list. Before this,
+  the Behaviour section did not list an open PR.
+- 2026-11-17, from review: the inbox shell differs from the Behaviour
+  section's snippet:
+  - the steps are chained with `&&`;
+  - `<text>` is single-quoted;
+  - a missing session id is cut to `nosessio`, and such a line is filed
+    only as an orphan;
+  - the take is `inbox.<s8>.<pid>.filing`, touched when it is made, and
+    its path is printed for later calls;
+  - a take another session left is read only once it is more than a day
+    old.
+- 2026-11-17: a session that holds its own take for more than a day can
+  have it read by another session. This is accepted: a boundary does not
+  last a day.
+- The plan stays `active`. The phases are ticked and `status: done` is set
+  in the release PR, which carries the version bump, once the release is
+  verified.
+
 ## 🧑 Your steps
 
 - none
