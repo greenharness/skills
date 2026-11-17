@@ -99,7 +99,10 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
 7. **Hand off.** A verified, swept release is a boundary: when the
    `worktree-task` skill is installed, run its Handoff section, which ends
    the answer with ``safe to /clear; next: `<prompt>` ``. Without it, write
-   what comes next into the plan or programme map, and end with that line.
+   what comes next into the plan or programme map. Then, only when nothing
+   of this session is in flight (uncommitted or unpushed work, an open PR,
+   a background task or run, an unanswered question), end with that line,
+   last, with a one-line prompt and no backtick in it.
 
 ## Recovery if the tag ended up on the wrong commit
 

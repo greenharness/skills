@@ -510,7 +510,8 @@ below names one of them.
        indented line are not. Skip fenced lines. The block stops at the next
        heading, or at a `Phase N` or 🧑 decision item. The number of lines
        you print equals `plan-panel`'s `steps:N` for that plan.
-     - With no block, or an empty one, the last line is `Your steps: none.`
+     - With no block, or an empty one, the block is the single line
+       `Your steps: none.`, before the handoff line.
        When the plan cannot be read (a missing file, or a `git show` that
        fails), print `Your steps: unknown (plan not readable at <path>)`,
        never `none`.
@@ -535,13 +536,20 @@ bytes, with a single `>>`. The inbox is one per repository, shared by its
 worktrees, and never committed:
 
 ```bash
-inbox="$(git rev-parse --path-format=absolute --git-common-dir)/greenharness/inbox.md"
-s8=$(printf %s "${CLAUDE_CODE_SESSION_ID:-nosession}" | cut -c1-8)
-mkdir -p "${inbox%/*}" && printf '%s %s %s\n' "$(date +%F)" "$s8" "<text>" >> "$inbox"
+d=$(git rev-parse --path-format=absolute --git-common-dir) &&
+  inbox="$d/greenharness/inbox.md" &&
+  s8=$(printf %s "${CLAUDE_CODE_SESSION_ID:-nosession}" | cut -c1-8) &&
+  mkdir -p "${inbox%/*}" &&
+  printf '%s %s %s\n' "$(date +%F)" "$s8" '<text>' >> "$inbox"
 ```
 
-`<text>` may start with `due=YYYY-MM-DD`, and names the repository when
-the follow-up is about another one.
+- `<text>` may start with `due=YYYY-MM-DD`, and names the repository when
+  the follow-up is about another one. It is single-quoted: write a `'` in
+  it as `'\''`.
+- Shell variables do not survive between tool calls: recompute `inbox`
+  and `s8` with the first three lines in every command that uses them.
+- Without a session id the line carries `nosessio`. Such a line is never
+  filed as anyone's own, only as an orphan.
 
 ### When
 
@@ -561,19 +569,25 @@ worktrees and runs do not count. All of these hold:
 - none of its background tasks, polls or relais runs is still running or
   waiting on a decision;
 - no question to the person is unanswered;
-- no worktree it made is left to tear down (boundary 1's own excepted).
+- no worktree it made is left to tear down (boundary 1's own excepted);
+- no PR of its own is open. A PR that F9 left waiting on a `merge-after:`
+  is in flight: write the handoff, naming what it waits for, but print no
+  line.
 
 If anything is in flight, say what it is and print no handoff line.
 
 ### Steps
 
 1. **File the inbox** of every repository this session touched. Skip a
-   repository with no `inbox.md` and no `inbox.*.filing`.
+   repository with no `inbox.md` and no leftover `.filing` file.
    - First take the inbox atomically, when `inbox.md` exists:
-     `mv "$inbox" "${inbox%.md}.$s8.filing"`. Appenders then start a new
+     `mv "$inbox" "${inbox%.md}.$s8.$$.filing"`. The name is this shell's
+     own, so it never overwrites another take. Appenders then start a new
      file, and no two sessions file the same line.
-   - Read the taken file, and any other `inbox.*.filing` a dead session
-     left behind.
+   - Read the taken file. Also read the takes a dead session left behind:
+     `find "${inbox%/*}" -name 'inbox.*.filing' -mtime +0` lists those
+     older than a day. A younger one is another session still filing, so
+     leave it.
    - File the lines that carry this session's id, and every line dated two
      or more days before today (an orphan: its session is gone).
    - Each filed line becomes a `task` ticket, `mode = "afk"`, with
@@ -581,7 +595,8 @@ If anything is in flight, say what it is and print no handoff line.
      goes in the plan's programme map, or else in this repository's
      `docs/programmes/follow-ups/` (write its `map.md` on first use).
    - Append each line not filed back to `inbox.md`, one `>>` each, then
-     delete the taken files. `relais programme check <dir>`, when relais is
+     delete your own take and the leftovers you read, nothing else.
+     `relais programme check <dir>`, when relais is
      installed, exits 0.
 2. **Write the handoff** into the repository, never into memory or a file
    outside it.
