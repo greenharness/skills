@@ -151,6 +151,8 @@ The approved plan is the branch's FIRST commit, before any code.
      name exists. Then, when `~/.claude/skills/plan-picture/check.py`
      exists, it must exit 0 on the landed plan.
 5. **Commit it alone** (with its sidecar): `docs(plan): <slug>`.
+6. **Boundary 1.** When implementation does not start in this turn, run
+   [Handoff](#handoff) now: the landed plan is the whole handoff.
 
 Skip all of this for a change describable in one sentence: it joins the
 open batch branch with no plan.
@@ -496,7 +498,7 @@ below names one of them.
   3. In the report, say what was removed and what the sweep kept, one line
      each.
   4. End the report with the plan's `### 🧑 Your steps` block, as its last
-     lines, under `Your steps (the agent cannot run these):`, one numbered
+     lines before the handoff line of step 5, under `Your steps (the agent cannot run these):`, one numbered
      line per step in the form ``N. `command` — because <why>``.
      - **Which plan.** For a pointer plan (`canonical:`), read the block from
        the plan `canonical:` names: a pointer never holds it.
@@ -512,11 +514,106 @@ below names one of them.
        When the plan cannot be read (a missing file, or a `git show` that
        fails), print `Your steps: unknown (plan not readable at <path>)`,
        never `none`.
+  5. **Boundary 2.** Run [Handoff](#handoff). Its line comes after the
+     Your steps block and ends the report.
 
 - One implementation pull request per repo per plan; F9 merges it with the `merge-when-green` skill. That skill's step 6 fast-forwards the live checkout after the merge, so this finish does not touch it: before the merge there is nothing new on `origin/main` to bring in.
 - A release (`tag-release`) ends with the same sweep, because a worktree becomes sweepable only once its PR is in a release tag.
 
 No release unless the person asks for one.
+
+## Handoff
+
+A session ends at a boundary with its state in the repository, so that a
+`/clear` loses nothing. Run this without being asked: the person does not
+type "write the handoff".
+
+### Follow-ups go to the inbox, at any time
+
+When you notice work that is not this task, append one line, under 512
+bytes, with a single `>>`. The inbox is one per repository, shared by its
+worktrees, and never committed:
+
+```bash
+inbox="$(git rev-parse --path-format=absolute --git-common-dir)/greenharness/inbox.md"
+s8=$(printf %s "${CLAUDE_CODE_SESSION_ID:-nosession}" | cut -c1-8)
+mkdir -p "${inbox%/*}" && printf '%s %s %s\n' "$(date +%F)" "$s8" "<text>" >> "$inbox"
+```
+
+`<text>` may start with `due=YYYY-MM-DD`, and names the repository when
+the follow-up is about another one.
+
+### When
+
+At each of these boundaries:
+
+1. the plan has landed and implementation does not start in this turn
+   (Land the plan, step 6);
+2. the PR has merged and the worktree is torn down (F10 step 5);
+3. a programme ticket is closed and its PR merged;
+4. a release is verified and swept (`tag-release`).
+
+Only when nothing of **this session** is in flight. Other sessions'
+worktrees and runs do not count. All of these hold:
+
+- its worktrees have no uncommitted or unpushed work (at boundary 1, the
+  plan commit may be unpushed);
+- none of its background tasks, polls or relais runs is still running or
+  waiting on a decision;
+- no question to the person is unanswered;
+- no worktree it made is left to tear down (boundary 1's own excepted).
+
+If anything is in flight, say what it is and print no handoff line.
+
+### Steps
+
+1. **File the inbox** of every repository this session touched. Skip a
+   repository with no `inbox.md` and no `inbox.*.filing`.
+   - First take the inbox atomically, when `inbox.md` exists:
+     `mv "$inbox" "${inbox%.md}.$s8.filing"`. Appenders then start a new
+     file, and no two sessions file the same line.
+   - Read the taken file, and any other `inbox.*.filing` a dead session
+     left behind.
+   - File the lines that carry this session's id, and every line dated two
+     or more days before today (an orphan: its session is gone).
+   - Each filed line becomes a `task` ticket, `mode = "afk"`, with
+     `## Look at` and `## Answer looks like`, and `due` from `due=`. It
+     goes in the plan's programme map, or else in this repository's
+     `docs/programmes/follow-ups/` (write its `map.md` on first use).
+   - Append each line not filed back to `inbox.md`, one `>>` each, then
+     delete the taken files. `relais programme check <dir>`, when relais is
+     installed, exits 0.
+2. **Write the handoff** into the repository, never into memory or a file
+   outside it.
+   - **In a programme:** replace the map's `## Handoff` section (between
+     Decisions so far and Not yet specified; never a second one). It holds
+     the date and the boundary; what is done and what merged; the live
+     state; what is next, in order, by ticket name; accepted gaps and
+     lessons; and the plan's Your steps when it has any, so a clear does
+     not lose them.
+   - **Without a programme:** the plan is the handoff. Check that its next
+     open phase, or its Outcome, states the next action.
+3. **Land it** with the change it describes: in the ticket's closing
+   commit, or the plan's last commit, before that PR merges. Only what the
+   merge itself reveals goes in one docs PR afterwards, merged with the
+   `merge-when-green` skill; the line waits for that merge.
+4. **End the answer with the line**, as its last line, with nothing after
+   it:
+
+   ```
+   safe to /clear; next: `<prompt>`
+   ```
+
+   - The prompt is one line, not empty, at most 2,000 characters, with no
+     backtick in it.
+   - It is what a fresh session needs to resume: for example
+     `resume <programme> <ticket id>: <gist>`, or
+     `implement docs/plans/<file> in <repo>`.
+   - When the next step is the person's, the prompt says so: for example
+     `what is next on <programme>; the person's steps are in its map`.
+   - A clear-relay plugin, when installed, clears and submits the prompt
+     after a countdown the person can stop. Without it, the person types
+     `/clear` and pastes the prompt.
 
 ## Cleanup (abandon)
 

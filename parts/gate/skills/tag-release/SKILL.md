@@ -96,6 +96,10 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    - Fast-forward the live checkout: `merge-when-green` step 6, the same guarded command, never anything but `--ff-only`.
    - Sweep the repo: `python3 ~/.claude/skills/worktree-sweep/sweep.py --repo <repo> --apply`. It removes only worktrees that are clean, pushed, merged and released, and keeps the rest.
    - Put what it removed and kept in the report, one line each. A release is not done until this step has run.
+7. **Hand off.** A verified, swept release is a boundary: when the
+   `worktree-task` skill is installed, run its Handoff section, which ends
+   the answer with ``safe to /clear; next: `<prompt>` ``. Without it, write
+   what comes next into the plan or programme map, and end with that line.
 
 ## Recovery if the tag ended up on the wrong commit
 
