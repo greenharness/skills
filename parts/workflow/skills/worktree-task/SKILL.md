@@ -580,14 +580,21 @@ If anything is in flight, say what it is and print no handoff line.
 
 1. **File the inbox** of every repository this session touched. Skip a
    repository with no `inbox.md` and no leftover `.filing` file.
-   - First take the inbox atomically, when `inbox.md` exists:
-     `mv "$inbox" "${inbox%.md}.$s8.$$.filing"`. The name is this shell's
-     own, so it never overwrites another take. Appenders then start a new
-     file, and no two sessions file the same line.
+   - First take the inbox atomically, when `inbox.md` exists, in the same
+     command as the three lines that set `inbox` and `s8`:
+     ```bash
+     take="${inbox%.md}.$s8.$$.filing" && mv "$inbox" "$take" &&
+       touch "$take" && printf '%s\n' "$take"
+     ```
+     The name is this shell's own, so it never overwrites another take, and
+     appenders start a new file, so no two sessions file the same line.
+     `touch` dates the take when it is made (`mv` keeps the last append's
+     time), which the age test below relies on. `$$` changes with every
+     tool call: use the printed path, as written, in every later command.
    - Read the taken file. Also read the takes a dead session left behind:
      `find "${inbox%/*}" -name 'inbox.*.filing' -mtime +0` lists those
-     older than a day. A younger one is another session still filing, so
-     leave it.
+     taken more than a day ago. A younger one is another session still
+     filing, so leave it.
    - File the lines that carry this session's id, and every line dated two
      or more days before today (an orphan: its session is gone).
    - Each filed line becomes a `task` ticket, `mode = "afk"`, with
