@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/handoff-step
 repos: [greenharness-skills, grh, relais, decisions]
 programme: decisions docs/programmes/session-boundaries t04-handoff-step
@@ -174,15 +174,15 @@ being asked, makes the agent:
 
 ## Phases
 
-- [ ] Phase 1: greenharness-skills, in
+- [x] Phase 1: greenharness-skills, in
   `parts/workflow/skills/worktree-task/SKILL.md` and
   `parts/gate/skills/tag-release/SKILL.md`. Released through tag-release
   (v0.13.0), then the grh pin is bumped and released, and installed on this
   machine.
-- [ ] Phase 2: relais, in `claude-plugin/skills/programme/SKILL.md`, with a
+- [x] Phase 2: relais, in `claude-plugin/skills/programme/SKILL.md`, with a
   pointer plan in `docs/plans/`. Released as v0.68.0, installed, and the
   plugin reinstalled.
-- [ ] Phase 3: decisions, on branch `prog/session-boundaries/t04-handoff-step`,
+- [x] Phase 3: decisions, on branch `prog/session-boundaries/t04-handoff-step`,
   in `docs/programmes/session-boundaries/t04-handoff-step.md` and
   `docs/programmes/session-boundaries/map.md` (plus the filed ticket's file):
   - the t04 Resolution, with the PRs, the releases and the live proof;
@@ -296,8 +296,33 @@ being asked, makes the agent:
   in the release PR, which carries the version bump, once the release is
   verified.
 
+## Outcome
+
+- **Released:**
+  - skills 0.13.0 (#29, tag `v0.13.0`, its tarball sha256 checked);
+  - grh 0.8.1 (greenharness/grh#48), which pins it;
+  - relais v0.68.0 (fredericrous/relais#486 and #487).
+
+  The first relais Release run was refused at "every platform passed on
+  main": a later push had cancelled main's macOS and Windows jobs for the
+  release commit. Those jobs were re-run, the Release was re-run, and it
+  then concluded `success`, including the tap and the brew install check.
+- **Installed on this machine:** grh 0.8.1 and the skills 0.13.0 it pins.
+  `grh install workflow greengate` skipped `browser-check.md`, which grh did
+  not place. relais 0.68.0 is installed through brew. The relais plugin's
+  own copy of the programme skill stays at 0.66.0 until the person
+  reinstalls the plugin: a hook keeps that install theirs.
+- **Live proof:** t04 closed with the installed step (fredericrous/decisions#226).
+  - It took the inbox of all four repositories.
+  - It filed decisions' one line as t11 and left the inbox empty.
+  - It replaced the map's Handoff.
+  - The closing line is printed after that merge. The next session records
+    it in t04's Resolution.
+- **Follow-up measure:** t12, due 2026-11-24, counts the boundaries that end
+  with the line (bar: 90%).
+
 ## 🧑 Your steps
 
-- none
+- `relais install --claude --user --write` — because a hook keeps the plugin install the person's, and the plugin still carries programme skill 0.66.0
 
 <!-- panel: repos=greenharness-skills,grh,relais,decisions reviewers=backend body-sha=ac22ca3afb60 -->
