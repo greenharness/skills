@@ -78,6 +78,18 @@ Standing rule: **never use `gh pr merge --auto`** on a repository without branch
    - `--ff-only` refuses rather than overwriting an untracked file, so untracked files are not checked first.
    - Use `git -C`, never `cd` into the live checkout: the session's cwd persists.
 
+7. **Hand off when this merge ends the work.** A merge whose worktree is
+   torn down is a boundary, also when the worktree was made by hand and no
+   finish step ran. Skip this step when the `worktree-task` finish called
+   this skill (its F10 runs the Handoff), and after any merge but the last
+   one of a batch. Otherwise, when the `worktree-task` skill is installed,
+   run its Handoff section: it checks that nothing of this session is in
+   flight and ends the answer with ``safe to /clear; next: `<prompt>` ``.
+   Without it, write what comes next into the plan or programme map. Then,
+   only when nothing of this session is in flight (uncommitted or unpushed
+   work, an open PR, a background task or run, an unanswered question),
+   end with that line, last, with a one-line prompt and no backtick in it.
+
 ## Another forge
 
 On a forge without `gh` (Forgejo, Gitea, GitLab), the rules are the same: poll
