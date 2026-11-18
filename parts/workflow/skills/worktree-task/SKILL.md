@@ -424,10 +424,12 @@ below names one of them.
      `isolatedContext` of a fresh name, never in the default context: that
      one keeps an earlier agent's login across runs (measured: a cold load
      after another agent's sign-in showed the signed-in page). It reports,
-     as measured facts, the cookies and storage it holds for the origin
-     after the load, the final URL, whether a sign-in form or login route
-     is showing, and whether the text or element "What you should see"
-     names is on the page.
+     as measured facts, the script-visible cookies and storage it holds for
+     the origin after the load, the final URL, whether a sign-in form or
+     login route is showing, and whether the text or element "What you
+     should see" names is on the page. HttpOnly cookies are not
+     script-visible: the isolated context, not this report, is what makes
+     the load cold.
      - **A wall is the agent's to fix, outside the commit.** Change only the
        running preview: seed a throwaway account in the dev data, start the
        server with the repository's existing dev-login switch, or pick a
@@ -443,8 +445,13 @@ below names one of them.
        carries no `[preview` marker and names no localhost URL
        (`ask-unopened-page` would otherwise require a fresh open before step
        6). It comes before step 4, so no registration is pending; on a fallback
-       the answer lapses the earlier one. After the answer (`Hold` stops),
-       go on to steps 4–6, registering again.
+       the answer lapses the earlier one. Then, by answer:
+       - `I'll sign in or give a login`: put that sign-in in "Try it" step 1,
+         run 3b again with it (a round), then steps 4–6, registering again;
+       - `Skip the page, review the PR evidence`: skip step 5, register
+         (step 4), and word the marked question to name no URL and point to
+         the PR evidence;
+       - `Hold` stops.
      - "Try it" step 1 of the guide says what sign-in the page needs and how
        it was provided; it never says "signed in" for a state only the
        agent's browser had.
@@ -462,7 +469,7 @@ below names one of them.
      it, if the files still match. Skip steps 5 and 6, put the guide and
      both screenshots in the PR body, and push as in F6; say so in one
      line. If the push is still held, or the hook journals
-     `unchanged-skipped`, run steps 5 to 7 as usual. This holds only for
+     `unchanged-skipped`, run 3b, then steps 5 to 7. This holds only for
      the real pair of step 2: `before` from the base build (not an earlier
      step's shot), `after` from this commit, at the same route and state.
      Never copy one shot onto the other; every `unchanged` approval is
@@ -481,8 +488,8 @@ below names one of them.
      the click. Say what was opened.
   6. **Print the brief in the terminal**: the guide's sections, short. Then,
      in the SAME turn, ask ONE marked question with AskUserQuestion, only
-     when 3b passed, was skipped by its own rule, or the person answered its
-     question:
+     when 3b passed, was skipped by its own rule, or the person chose `Skip
+     the page`:
      - its text begins with the register's `question_prefix`, verbatim,
        then the project and the one-line change (the id in the marker is
        what binds; it starts with the commit's short sha);
