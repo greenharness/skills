@@ -41,7 +41,7 @@ A cold load of the page with no login runs before any question, so the agent fix
 
 A happier session asked the person to approve changes from a page that opened logged out. The person could not see the changes and approved anyway. The F7 skill in `~/.claude/skills/worktree-task/SKILL.md` (steps 5–6, lines ~432–457) opens the page and asks in the same turn. Nothing checks that the page shows the change. "A guide exists" is the only precondition, and a guide can be correct while the person's page is a login screen.
 
-The person wants no human step unless there is something to review, and the agent to check with Playwright, Chrome DevTools or Claude in Chrome. The `browser-check` browser is headless and isolated, with none of the person's logins: that is the state of a logged-out page, so a cold load of the exact URL shows what a logged-out person would see. What to avoid is trusting the agent's own signed-in profile, which is how the transcript's guide came to say "signed in".
+The person wants no human step unless there is something to review, and the agent to check with Playwright, Chrome DevTools or Claude in Chrome. The `browser-check` browser is headless, but its default context keeps an earlier agent's login across runs, so the cold load opens the page in an isolated context, which holds no login and shows what a logged-out person would see. What to avoid is trusting the agent's own signed-in profile, which is how the transcript's guide came to say "signed in".
 
 ## Transcript evidence
 
@@ -58,10 +58,10 @@ Root cause as the transcript shows it: the guide described a signed-in state tha
 
 ## Approach
 
-1. **Cold-load check before register (new, F7 step 3b, after the guide, before steps 4 and 5; skipped on the step 0 evidence path and when `before.jpg` and `after.jpg` are byte-identical, so the `unchanged` path stays as today).** Run `browser-check` on the exact URL step 5 will open, in a fresh browser context with no cookies or login. Its brief first asks it to report the cookies and storage it holds for the origin; a non-empty store fails the check as not cold (its chrome-devtools profile may keep an earlier agent login). It reports measured facts: the final URL, whether a sign-in form or login route is showing, and whether the text or element the guide's "What you should see" names is on the page.
-2. **A wall is the agent's to fix, outside the commit.** Allowed: changes to the running preview only (seed a throwaway account in the dev data, start the server with the repository's existing dev-login switch, or pick a route that renders the change signed-out). With a throwaway account, the cold load signs in with exactly the credentials the guide's "Try it" step 1 gives. Never: a code change, or a session token in the URL, guide or PR body. A fix that needs code goes straight to Approach 4. Two rounds at most, then register (step 4) and open (step 5) once.
-3. **The marked question is asked only when there is something to look at and the cold load passed.** Options stay exactly `Approve`, `Request changes`, `Hold`, as the register and the hook require. The `unchanged` path and the planned-evidence path ask nothing today and are left alone.
-4. **When the cold load still fails after two rounds,** the agent asks the person one unmarked question: the preview needs a login it cannot provide, with what the cold load showed. Options: `I'll sign in or give a login`, `Skip the page, review the PR evidence`, `Hold`. The question carries no `[preview` marker and names no localhost URL (`ask-unopened-page` would otherwise require a fresh open before step 6). It is asked before step 4, so no registration is pending; after the answer the agent registers (step 4) and opens (step 5), then asks the marked question.
+1. **Cold-load check before register (new, F7 step 3b, after the guide, before steps 4 and 5; skipped on the step 0 evidence path and when `before.jpg` and `after.jpg` are byte-identical, so the `unchanged` path stays as today).** Run `browser-check` on the exact URL step 5 will open, in a fresh browser context with no cookies or login. The caller's brief to it says to open the page with an `isolatedContext` of a fresh name, because the default context keeps an earlier agent's login across runs; it also reports the script-visible cookies and storage after the load, as a record. It reports measured facts: the final URL, whether a sign-in form or login route is showing, and whether the text or element the guide's "What you should see" names is on the page.
+2. **A wall is the agent's to fix, outside the commit.** Allowed: changes to the running preview only (seed a throwaway account in the dev data, start the server with the repository's existing dev-login switch, or pick a route that renders the change signed-out). With a throwaway account, the cold load signs in with exactly the credentials the guide's "Try it" step 1 gives. Never: a code change, or a session token in the URL, guide or PR body. A fix that needs code goes straight to Approach 4. Two rounds at most, then Approach 4.
+3. **The marked question is asked only when there is something to look at and the cold load passed, or the person chose `Skip the page`.** Options stay exactly `Approve`, `Request changes`, `Hold`, as the register and the hook require. The `unchanged` path and the planned-evidence path ask nothing today and are left alone.
+4. **When the cold load still fails after two rounds,** the agent asks the person one unmarked question: the preview needs a login it cannot provide, with what the cold load showed. Options: `I'll sign in or give a login`, `Skip the page, review the PR evidence`, `Hold`. The question carries no `[preview` marker and names no localhost URL (`ask-unopened-page` would otherwise require a fresh open before step 6). It is asked before step 4, so no registration is pending. By answer: a login given runs 3b again, and if the wall stays (a login typed into the person's own browser is invisible to the isolated context) the question is asked once more with only `Skip the page` and `Hold`; `Skip the page` skips the open (step 5), registers, and the marked question names no URL; `Hold` stops.
 5. **The guide stops claiming a state only the agent had.** "Try it" step 1 states what sign-in the page needs and how it was provided, and never says "signed in" for a state that exists only in the agent's own browser profile.
 
 ## Non-goals
@@ -86,7 +86,7 @@ The skills live in the `greenharness/skills` repository (https://github.com/gree
 
 - `parts/workflow/skills/worktree-task/SKILL.md` — F7 new step 3b and step 6 (edit).
 - `parts/workflow/skills/worktree-task/preview-guide-template.md` — add an optional "Sign in first" line in "Try it" step 1 (edit).
-- `~/.claude/agents/browser-check.md` — no change in this plan; its brief stays headless, which is what the cold load needs: no cookies, no login.
+- `~/.claude/agents/browser-check.md` — no change in this plan; its brief stays as is; the F7 caller's brief asks for an isolated context, which is what makes the load cold.
 - `greenbelay` 6.5.0 `preview register` — no change; out of scope.
 
 ## Verification
@@ -96,6 +96,32 @@ The skills live in the `greenharness/skills` repository (https://github.com/gree
 - Dry-run in a throwaway worktree against a login-gated page. Expected: the cold load reports a wall before any register; the agent fixes the running preview with no commit; the second cold load passes; one register and one open follow; the marked question passes `ask-unopened-page` and binds.
 - Cannot-fix path. Expected: after two rounds the unmarked question asks the person; no registration exists when it is asked; after the answer, one register and one open come before the marked question.
 - A refactor whose before and after pair is unchanged. Expected: no question to the person and no new step, as today.
+
+Observed on 2026-11-18, before the push. Rows marked "not run" were not exercised.
+
+- Tests: `python3 -m unittest discover -s tests` gave 109 OK; `model: "opus"` is pinned once and `agent-model-fallback` is cited 3 times. Observed: pass.
+- The edited F7 section, read end to end: the marked question and its options `Approve`, `Request changes`, `Hold` are unchanged. The diff touches step 0 (skip 3b), the new step 3b, step 6's condition, and the guide template's "Try it" step 1.
+- Cold load of a stand-in login-gated page (a local server whose `/inbox` shows a "Sign in" form until it sets a cookie), by `browser-check` on haiku:
+  - Default context, nothing signed in: cookies empty, a "Sign in" heading and button showing, neither "Inbox" nor "3 messages" found. The wall is reported as a measured fact.
+  - After another agent signed in (`sid=1`): a second cold load in the default context saw "Inbox / 3 messages" and no wall. The default context is not cold, so 3b was rewritten to open the page in an isolated context.
+  - Isolated context `cold-run4`, with `sid=1` still held in the default one: cookies empty, "Sign in" showing, no "Inbox". Observed: pass.
+- Not run: the agent fixing a running preview, and the register, open and marked-question binding under the hooks (no UI repository was involved); the cannot-fix question; the unchanged refactor path. They are measured on the first real F7 run.
+
+## Decision log
+
+- 2026-11-18 — 3b opens the page in an isolated browser context instead of asking the agent to read the store first, because the second cold load showed the default context keeps an earlier agent's login, and a page's storage can only be read after the page loads. This changes the wording of Approach 1: the cookies and storage are still reported, after the load, as a record.
+- 2026-11-18 — The skill does not name the date of the incident, because the transcript match is inferred, not verified.
+
+## Implementation review
+
+- **Round 1** (opus, 44k tokens, 59 s): approve-with-changes. Four findings, all fixed: each answer to the unmarked question has its own branch; the cookie report says "script-visible"; step 4's fallback runs 3b first; the plan's isolation claims and carried items corrected.
+- **Delta** (opus, 33k tokens, 27 s): approve-with-changes. Round-1 findings resolved; two new findings, both fixed: a login typed into the person's own browser cannot pass the cold load, so the question is asked once more with only `Skip the page` and `Hold`; the plan's Approach 3 and 4 match the branches.
+- **Delta, resumed twice** (opus, 39k and 41k tokens, 20 s and 58 s): first approve-with-changes, then approve with no findings. The stall fix left "then steps 4–6" ambiguous and the round cap off by one; the login branch now reads in order and says "a round past the two", and Approach 2 ends "then Approach 4".
+
+## Outcome
+
+Implemented in `parts/workflow/skills/worktree-task/SKILL.md` and `parts/workflow/skills/worktree-task/preview-guide-template.md`. The status stays `active` until the first real F7 run measures the rows not run above, and the three measures from the final review: zero `browser-check` runs and no question on an unchanged refactor; a cold-load report before every marked question; no `ask-unopened-page` refusal on step 6. Carried items from the final review: (1) the fallback runs 3b first: done; (2) the caller's-brief wording: done; (3) the claim that the browser is isolated: corrected here, the default context keeps a login and 3b opens an isolated one; (4) the picture still ends the ask branch without rejoining at register: not changed; (5) the earlier wording item: obsolete, since the store-first sentence was replaced.
+
 
 ## Decisions (2026-11-18)
 
