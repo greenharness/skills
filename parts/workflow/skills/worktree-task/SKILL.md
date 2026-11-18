@@ -446,8 +446,12 @@ below names one of them.
        (`ask-unopened-page` would otherwise require a fresh open before step
        6). It comes before step 4, so no registration is pending; on a fallback
        the answer lapses the earlier one. Then, by answer:
-       - `I'll sign in or give a login`: put that sign-in in "Try it" step 1,
-         run 3b again with it (a round), then steps 4–6, registering again;
+       - `I'll sign in or give a login`: put that sign-in in "Try it" step 1
+         and run 3b again with it (a round). A login the person gave goes
+         through; one they typed into their own browser is invisible to the
+         isolated context, so the wall stays: ask once more, with only
+         `Skip the page, review the PR evidence` and `Hold`. Then steps 4–6,
+         registering again;
        - `Skip the page, review the PR evidence`: skip step 5, register
          (step 4), and word the marked question to name no URL and point to
          the PR evidence;
