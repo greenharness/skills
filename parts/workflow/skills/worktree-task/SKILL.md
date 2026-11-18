@@ -383,8 +383,8 @@ below names one of them.
   0. **Planned evidence**.
      If the plan approved through ExitPlanMode has, in its body, a
      `## Preview` section whose first non-empty line starts with
-     `evidence:`, do steps 1–3 (server, screenshots, guide), compare every
-     existing screen against the base, and put the
+     `evidence:`, do steps 1–3 (server, screenshots, guide; not 3b),
+     compare every existing screen against the base, and put the
      guide, screenshots and comparison in the PR body. Ask nothing, then push
      as in F6: the hook passes the push and journals `evidence`. If the
      comparison shows a visible change the plan did not decide, the
@@ -410,6 +410,55 @@ below names one of them.
      - Reference;
      - Already checked.
      Write it for someone who has not seen this session.
+  3b. **Cold load before register.** The person's browser has none of the
+     agent's logins, and the page they get must show the change without
+     them: a guide once said "signed in" for a state only the agent's own
+     browser had, and the person approved a page they could not see. Skip
+     3b on the step 0 evidence path, and when `cmp before.jpg after.jpg`
+     says the pair is byte-identical: the `unchanged` path asks nothing and
+     stays as it is. A fallback to steps 5–7 (the hook journals
+     `unchanged-skipped`, or holds a step 0 push) runs 3b first.
+     Launch `browser-check` (`model: "haiku"`; failure:
+     `agent-model-fallback`) on the exact URL step 5 will open. The caller's
+     brief to it says to open the page with `new_page` and an
+     `isolatedContext` of a fresh name, never in the default context: that
+     one keeps an earlier agent's login across runs (measured: a cold load
+     after another agent's sign-in showed the signed-in page). It reports,
+     as measured facts, the script-visible cookies and storage it holds for
+     the origin after the load, the final URL, whether a sign-in form or
+     login route is showing, and whether the text or element "What you
+     should see" names is on the page. HttpOnly cookies are not
+     script-visible: the isolated context, not this report, is what makes
+     the load cold.
+     - **A wall is the agent's to fix, outside the commit.** Change only the
+       running preview: seed a throwaway account in the dev data, start the
+       server with the repository's existing dev-login switch, or pick a
+       route that renders the change signed-out. With a throwaway account the
+       cold load signs in with exactly the credentials "Try it" step 1
+       gives. Never a code change (it returns to F1, and a committed
+       auto-login ships an auth bypass), and never a session token in the
+       URL, the guide or the PR body. Two rounds at most.
+     - **Still a wall after two rounds, or a fix that needs code:** ask the
+       person one unmarked question: the preview needs a login the agent
+       cannot provide, with what the cold load showed. Options: `I'll sign in
+       or give a login`, `Skip the page, review the PR evidence`, `Hold`. It
+       carries no `[preview` marker and names no localhost URL
+       (`ask-unopened-page` would otherwise require a fresh open before step
+       6). It comes before step 4, so no registration is pending; on a fallback
+       the answer lapses the earlier one. Then, by answer:
+       - `I'll sign in or give a login`: put that sign-in in "Try it" step 1
+         and run 3b again with it (a round past the two). If it passes,
+         steps 4–6, registering again. If the wall stays (a login typed into
+         their own browser is invisible to the isolated context, and a given
+         login can be wrong), ask once more with only `Skip the page, review
+         the PR evidence` and `Hold`, and follow that answer's branch;
+       - `Skip the page, review the PR evidence`: skip step 5, register
+         (step 4), and word the marked question to name no URL and point to
+         the PR evidence;
+       - `Hold` stops.
+     - "Try it" step 1 of the guide says what sign-in the page needs and how
+       it was provided; it never says "signed in" for a state only the
+       agent's browser had.
   4. **Register it** in the foreground, as the last command of its Bash call
      (anything joined by `&&` or `;` may come before it; never pipe it,
      redirect it or put it in `$(…)`):
@@ -424,7 +473,7 @@ below names one of them.
      it, if the files still match. Skip steps 5 and 6, put the guide and
      both screenshots in the PR body, and push as in F6; say so in one
      line. If the push is still held, or the hook journals
-     `unchanged-skipped`, run steps 5 to 7 as usual. This holds only for
+     `unchanged-skipped`, run 3b, then steps 5 to 7. This holds only for
      the real pair of step 2: `before` from the base build (not an earlier
      step's shot), `after` from this commit, at the same route and state.
      Never copy one shot onto the other; every `unchanged` approval is
@@ -442,7 +491,9 @@ below names one of them.
      clicks a URL cannot carry, open the URL and let step 1 of "Try it" say
      the click. Say what was opened.
   6. **Print the brief in the terminal**: the guide's sections, short. Then,
-     in the SAME turn, ask ONE marked question with AskUserQuestion:
+     in the SAME turn, ask ONE marked question with AskUserQuestion, only
+     when 3b passed, was skipped by its own rule, or the person chose `Skip
+     the page`:
      - its text begins with the register's `question_prefix`, verbatim,
        then the project and the one-line change (the id in the marker is
        what binds; it starts with the commit's short sha);
