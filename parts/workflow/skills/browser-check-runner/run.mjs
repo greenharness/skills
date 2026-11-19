@@ -8,40 +8,59 @@ import { pathToFileURL } from "node:url";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { parseArgs } from "node:util";
 
 const PLAYWRIGHT_VERSION = "1.60.0";
 const DEFAULT_TIMEOUT_SECONDS = 120;
 
-class RunnerError extends Error {}
+const MAX_TIMEOUT_SECONDS = (2 ** 31 - 1) / 1000; // setTimeout's largest delay, in seconds
+const TITLE_DEADLINE_SECONDS = 5;
+
+class RunnerError extends Error {
+  constructor(message, options) {
+    super(message, options);
+    this.name = "RunnerError";
+  }
+}
 
 let browser = null;
+let launching = null;
 let npmChild = null;
+let installDirectory = null;
 
 function parseArguments(argv) {
-  const options = { url: null, viewport: "1280x800", steps: null, shots: null, timeoutSeconds: DEFAULT_TIMEOUT_SECONDS };
-  const flags = { "--url": "url", "--viewport": "viewport", "--steps": "steps", "--shots": "shots", "--timeout": "timeoutSeconds" };
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
-    const eq = argument.indexOf("=");
-    const flag = argument.startsWith("--") && eq > 0 ? argument.slice(0, eq) : argument;
-    const key = flags[flag];
-    if (!key) throw new RunnerError(`unknown argument: ${argument}`);
-    let value;
-    if (flag !== argument) value = argument.slice(eq + 1);
-    else {
-      index += 1;
-      value = argv[index];
-    }
-    if (value === undefined) throw new RunnerError(`${flag} needs a value`);
-    options[key] = value;
+  let values;
+  try {
+    ({ values } = parseArgs({
+      args: argv,
+      options: {
+        url: { type: "string" },
+        viewport: { type: "string", default: "1280x800" },
+        steps: { type: "string" },
+        shots: { type: "string" },
+        timeout: { type: "string", default: String(DEFAULT_TIMEOUT_SECONDS) },
+      },
+      strict: true,
+      allowPositionals: false,
+    }));
+  } catch (error) {
+    throw new RunnerError(error.message, { cause: error });
   }
-  if (!options.url) throw new RunnerError("--url is required");
-  const match = /^(\d+)x(\d+)$/.exec(options.viewport);
-  if (!match) throw new RunnerError(`--viewport must look like 1280x800, got ${options.viewport}`);
-  options.viewportSize = { width: Number(match[1]), height: Number(match[2]) };
-  options.timeoutSeconds = Number(options.timeoutSeconds);
-  if (!(options.timeoutSeconds > 0)) throw new RunnerError("--timeout must be a positive number of seconds");
-  return options;
+  if (!values.url) throw new RunnerError("--url is required");
+  const match = /^(\d+)x(\d+)$/.exec(values.viewport);
+  if (!match) throw new RunnerError(`--viewport must look like 1280x800, got ${values.viewport}`);
+  const timeoutSeconds = Number(values.timeout);
+  if (!Number.isFinite(timeoutSeconds) || timeoutSeconds <= 0 || timeoutSeconds > MAX_TIMEOUT_SECONDS) {
+    throw new RunnerError(`--timeout must be a number of seconds above 0 and at most ${MAX_TIMEOUT_SECONDS}`);
+  }
+  return {
+    url: values.url,
+    viewport: values.viewport,
+    viewportSize: { width: Number(match[1]), height: Number(match[2]) },
+    steps: values.steps ?? null,
+    shots: values.shots ?? null,
+    timeoutSeconds,
+  };
 }
 
 function cacheDirectory() {
@@ -62,7 +81,7 @@ function runChild(command, args) {
     // npm and the browser installer write only to stderr: stdout is the report.
     const child = spawn(command, args, { stdio: ["ignore", 2, 2] });
     npmChild = child;
-    child.on("error", (error) => reject(new RunnerError(`${command} could not start: ${error.message}`)));
+    child.on("error", (error) => reject(new RunnerError(`${command} could not start: ${error.message}`, { cause: error })));
     child.on("close", (code, signal) => {
       npmChild = null;
       if (code === 0) resolve();
@@ -75,6 +94,7 @@ async function installPlaywright(target) {
   const parent = path.dirname(target);
   fs.mkdirSync(parent, { recursive: true });
   const temporary = fs.mkdtempSync(path.join(parent, `playwright-${PLAYWRIGHT_VERSION}.tmp-`));
+  installDirectory = temporary;
   try {
     await runChild("npm", [
       "install", `playwright@${PLAYWRIGHT_VERSION}`, "--prefix", temporary,
@@ -87,19 +107,18 @@ async function installPlaywright(target) {
       fs.renameSync(temporary, target);
     } catch (firstError) {
       // Another run may have installed the target meanwhile: keep it when it is the right version.
-      if (installedVersion(target) === PLAYWRIGHT_VERSION) {
-        fs.rmSync(temporary, { recursive: true, force: true });
-        return;
-      }
+      // The version is read again right before the stale target is removed.
+      if (installedVersion(target) === PLAYWRIGHT_VERSION) return;
       fs.rmSync(target, { recursive: true, force: true });
       try {
         fs.renameSync(temporary, target);
       } catch (secondError) {
-        throw new RunnerError(`could not move the install into place: ${firstError.message}; ${secondError.message}`);
+        throw new RunnerError(`could not move the install into place: ${firstError.message}; ${secondError.message}`, { cause: secondError });
       }
     }
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
+    installDirectory = null;
   }
 }
 
@@ -114,7 +133,7 @@ async function loadPlaywright(notes) {
   try {
     return { playwright: require("playwright"), target };
   } catch (error) {
-    throw new RunnerError(`cannot import playwright from ${target}: ${error.message}`);
+    throw new RunnerError(`cannot import playwright from ${target}: ${error.message}`, { cause: error });
   }
 }
 
@@ -124,7 +143,7 @@ async function launchBrowser({ playwright, target }, notes) {
     return await playwright.chromium.launch(launchOptions);
   } catch (error) {
     if (!/Executable doesn't exist/i.test(String(error.message))) {
-      throw new RunnerError(`cannot launch the browser: ${error.message}`);
+      throw new RunnerError(`cannot launch the browser: ${error.message}`, { cause: error });
     }
   }
   const started = Date.now();
@@ -133,7 +152,7 @@ async function launchBrowser({ playwright, target }, notes) {
   try {
     return await playwright.chromium.launch(launchOptions);
   } catch (error) {
-    throw new RunnerError(`cannot launch the browser: ${error.message}`);
+    throw new RunnerError(`cannot launch the browser: ${error.message}`, { cause: error });
   }
 }
 
@@ -142,8 +161,8 @@ function shotsDirectory(option) {
   let sha;
   try {
     sha = execFileSync("git", ["rev-parse", "--short", "HEAD"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
-  } catch {
-    throw new RunnerError("--shots is required outside a git repository"); // git failed: no sha to file under
+  } catch (error) {
+    throw new RunnerError("--shots is required outside a git repository", { cause: error }); // git failed: no sha to file under
   }
   return path.join(os.homedir(), ".claude", "greenbelay", "attestations", sha);
 }
@@ -159,7 +178,8 @@ function withDeadline(pending, seconds) {
 
 async function check(options, notes) {
   const loaded = await loadPlaywright(notes);
-  browser = await launchBrowser(loaded, notes);
+  launching = launchBrowser(loaded, notes);
+  browser = await launching;
   const report = {
     url: options.url,
     viewport: options.viewport,
@@ -186,11 +206,13 @@ async function check(options, notes) {
     }
   });
 
+  let directory = null;
+  const requestedShots = [];
   const shot = (name) => {
-    const directory = shotsDirectory(options.shots);
+    directory ??= shotsDirectory(options.shots);
     fs.mkdirSync(directory, { recursive: true });
     const file = path.join(directory, name);
-    report.shots.push(file);
+    requestedShots.push(file);
     return file;
   };
 
@@ -207,16 +229,27 @@ async function check(options, notes) {
       report.result = (await steps.default(page, { shot })) ?? null;
     }
   };
+  const describe = (error) => String(error && error.stack ? error.stack : error);
+  const onUnhandledRejection = (reason) => {
+    report.stepsError ??= describe(reason);
+  };
+  process.on("unhandledRejection", onUnhandledRejection);
   try {
     await withDeadline(run(), options.timeoutSeconds);
   } catch (error) {
-    report.stepsError = String(error && error.stack ? error.stack : error);
+    report.stepsError = describe(error);
+  } finally {
+    process.off("unhandledRejection", onUnhandledRejection);
   }
   report.url = page.url();
   try {
-    report.title = await page.title();
+    report.title = await withDeadline(page.title(), TITLE_DEADLINE_SECONDS);
   } catch {
-    report.title = null; // the page may be gone after a failed step
+    report.title = null; // the page may be gone or hung after a failed step
+  }
+  for (const file of requestedShots) {
+    if (fs.existsSync(file)) report.shots.push(file);
+    else notes.push(`shot not written: ${file}`);
   }
   return report;
 }
@@ -224,8 +257,11 @@ async function check(options, notes) {
 async function stopOnSignal(name, code) {
   process.stderr.write(`${name}: closing the browser\n`);
   if (npmChild) npmChild.kill("SIGTERM");
+  if (installDirectory) fs.rmSync(installDirectory, { recursive: true, force: true });
   try {
-    if (browser) await browser.close();
+    // a launch still pending is waited for, so its browser is closed too
+    const pendingBrowser = browser ?? (launching ? await launching.catch(() => null) : null);
+    if (pendingBrowser) await pendingBrowser.close();
   } catch (error) {
     process.stderr.write(`close failed: ${error.message}\n`);
   }
@@ -234,6 +270,8 @@ async function stopOnSignal(name, code) {
 
 async function main() {
   const options = parseArguments(process.argv.slice(2));
+  // stdout carries only the report: a steps module's console output goes to stderr
+  console.log = console.info = console.debug = console.error;
   process.on("SIGINT", () => void stopOnSignal("SIGINT", 130));
   process.on("SIGTERM", () => void stopOnSignal("SIGTERM", 143));
   const notes = [];
@@ -249,7 +287,15 @@ async function main() {
       }
     }
   }
-  process.stdout.write(`${JSON.stringify(report)}\n`);
+  let serialised;
+  try {
+    serialised = JSON.stringify(report);
+  } catch (error) {
+    report.result = null;
+    report.stepsError = `result is not JSON-serialisable: ${error.message}`;
+    serialised = JSON.stringify(report);
+  }
+  process.stdout.write(`${serialised}\n`);
 }
 
 main().catch((error) => {

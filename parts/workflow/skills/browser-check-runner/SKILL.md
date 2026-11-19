@@ -41,9 +41,12 @@ repository). What the function returns is the report's `result`.
 - 0: one JSON object on stdout and nothing else: `url`, `viewport`, `title`,
   `result`, `navigationError`, `stepsError`, `console`, `pageErrors`,
   `failedRequests`, `httpErrors` (status 400 and up), `shots`, `notes`. A
-  steps module that fails to import, throws or passes `--timeout` (default
-  120 s) is a `stepsError` inside the report, still exit 0.
-- 2: any runner-side failure (bad arguments, install, browser download,
+  steps module that fails to import, throws, rejects without a handler,
+  returns a result JSON cannot serialise, or passes `--timeout` (default
+  120 s) is a `stepsError` inside the report, still exit 0. `console.log`,
+  `console.info` and `console.debug` in a steps module go to stderr, so
+  stdout stays the one JSON report. `shots` lists only files that exist.
+- 2: any runner-side failure (bad or unknown arguments, install, browser download,
   import, launch); the reason is on stderr. Treat it as "Playwright failed".
 - 130 / 143: stopped by SIGINT / SIGTERM; the browser and a running npm are
-  closed first.
+  closed first, and an unfinished install directory is removed.
