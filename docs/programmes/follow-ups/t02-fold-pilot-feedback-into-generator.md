@@ -31,7 +31,10 @@ One greenharness-skills PR that adds, now:
 
 - every process and signal item (Phase 2 (3), Phase 3 (6)): hold HUP,
   INT and TERM across `Popen` and the `pgid` and pidfile writes (this
-  also closes the recipe's one-syscall window), print the pidfile path
+  also closes the recipe's one-syscall window) with a signal mask, not
+  `SIG_IGN`, and unblock them in the child (`preexec_fn`), since a
+  blocked mask survives exec and the server would ignore Cleanup's TERM;
+  print the pidfile path
   before starting, keep the failure log outside the state directory,
   list a group with `pgrep -lg`, treat `EPERM` from `killpg` on an
   exiting group as gone when the group is empty;
