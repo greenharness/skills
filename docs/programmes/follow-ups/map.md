@@ -22,8 +22,9 @@ merged, and the plan closed.
 
 - Filed: [t01](t01-verify-skill-pilot-measure.md), the plan's Phase 4
   measure, due 2026-12-19; [t02](t02-fold-pilot-feedback-into-generator.md),
-  the pilots' generator feedback.
-- Next: t02, then t01 on its date.
+  the pilots' generator feedback; [t03](t03-delete-stale-duro-mockup-copies.md),
+  the drifted `duro-mockup` copies the plan's survey named.
+- Next: t02, t03, then t01 on its date.
 
 ## Not yet specified
 

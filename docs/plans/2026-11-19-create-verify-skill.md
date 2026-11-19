@@ -305,7 +305,10 @@ from about 2026-10-15).
   fresh agent with only the skill launched `browser-check` itself (no
   split needed). Run 1: 0 repairs but F2 **failed**, two feature files
   stated behaviour the app lacks. Run 2: F2 **passed**, 0 repairs, about
-  3 min. The pointer plan in duro-app holds every row.
+  3 min. Counted against the baseline as the plan defines a repair (a
+  failed F2 check fixed and re-run): **1 repair over the two runs**, the
+  feature-file fix between them. The pointer plan in duro-app holds every
+  row.
 - Generator feedback from Phase 3, for t02 and the generator text:
   (1) Launch with the repository's own launcher: a direct
   `node …/bin.js` lost the pnpm shim's `NODE_PATH`, and every page was a
@@ -325,13 +328,21 @@ from about 2026-10-15).
   failure log outside the state directory the teardown removes; hold
   HUP as well as INT and TERM; print the pidfile path before starting,
   so a SIGKILLed Launch can be cleaned up; write the pidfile before
-  slow calls; `pgrep -lg`, not `ps -g`, lists a group; macOS answers
-  `EPERM` to `killpg` on an exiting group. (7) Two Launches timed out
+  slow calls; `pgrep -lg <pgid>` lists a group (seen: `node` and
+  `esbuild` for a live Launch group; `ps -g` does not select by group,
+  per the unix review, not reproduced here); `killpg` raised `EPERM`
+  (`PermissionError`) once on this Mac against a group whose leader had
+  just exited, in a probe outside the helper. Both pilots hold the
+  signals across `Popen` and the `pgid` write, which closes the window
+  noted under Implementation review below; the generator's own shell
+  recipe still has it (t02). (7) Two Launches timed out
   once each right after a SIGKILL test, not reproduced; the timeout now
   names its last failed readiness check.
 - The plan closes here (`status: done`). Phase 4 is the dated ticket
   `docs/programmes/follow-ups/t01-verify-skill-pilot-measure.md` (due
-  2026-12-19); folding the pilots' feedback into the generator is t02.
+  2026-12-19); folding the pilots' feedback into the generator is t02;
+  deleting the drifted `duro-mockup` copies (the survey's follow-up) is
+  t03.
 
 ## Implementation review
 
@@ -351,8 +362,16 @@ from about 2026-10-15).
 - deliberate: an empty-group branch prints the step 4 `ok:` line rather
   than a new message (the outcome is the same).
 - deliberate: a SIGINT between `Popen` and the `pgid` write leaves the group
-  unfound (one syscall wide); the pilot run will show if it matters.
+  unfound (one syscall wide). Not shown by the pilots (no signal test can
+  land in one syscall); both pilot helpers close it by holding the
+  signals across `Popen` and the write, and t02 carries it into the
+  generator's text.
 - No further pass: the fixes after the first delta were text-only.
+
+## Outcome
+
+Pending t01 (`docs/programmes/follow-ups/t01-verify-skill-pilot-measure.md`,
+due 2026-12-19): widen, build `--check`, or drop.
 
 <!-- panel: repos=greenharness-skills,grh,sre-agent,duro-app adds=contract reviewers=backend,lang:python,architect,po,tui,unix body-sha=28c917710b1b -->
 
