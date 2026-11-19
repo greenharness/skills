@@ -63,29 +63,30 @@ columns. Five sections, named exactly as below.
   lives outside the repository at
   `${TMPDIR:-/tmp}/verify-<app>-<h>.json`, where `<h>` is the first 12 hex
   characters of the sha1 of the worktree's real path. Launch prints that
-  path as its only stdout line and Cleanup takes it as its argument. Take
-  an exclusive lock file next to it (`O_EXCL`) before `Popen`, so two
-  Launches cannot both start; if a pidfile is already there and its group
-  is still alive, Launch stops with `fail:` and starts nothing.
+  path as its only stdout line and Cleanup takes it as its argument. If a
+  pidfile is already there and its group is still alive, Launch stops with
+  `fail:` and starts nothing. Two Launches started at the same instant are
+  not guarded against; say so in the generated skill.
 - Start the server as the leader of its own process group, so Cleanup can
   signal exactly the tree you started. macOS has no `setsid(1)`; use
   Python's `subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log,
   stderr=subprocess.STDOUT, start_new_session=True)`, with `log` opened in
   append mode and closed in the launcher once `Popen` returns, so the tool
   call does not wait on a pipe. The group id is `proc.pid`.
-- Right after `Popen`, write the group id to a file in the state directory,
-  so an interrupt before the pidfile exists still has something to tear
-  down. Then write the pidfile as JSON (group id, leader pid, the leader's
-  start time from `ps -o lstart=`, the command and the state directory) to
-  a temporary name in the same directory, and rename it into place, so no
-  reader sees half a file.
+- Right after `Popen`, write the group id to a file named `pgid` in the
+  state directory, so an interrupt before the pidfile exists still has
+  something to tear down. Then write the pidfile as JSON (group id, leader
+  pid, the leader's start time from `ps -o lstart=`, the command and the
+  state directory) to a temporary name in the same directory, and rename
+  it into place, so no reader sees half a file.
 - Check readiness against your own tree: list the listeners with
   `lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, map each pid to its group with
   `ps -o pgid= -p <pid>`, and require the recorded group id. A foreign
   server on the same port must never count as ready.
 - A `trap` on EXIT INT TERM tears down a failed or interrupted launch. Arm
-  it before `Popen`. The handler runs the Cleanup steps below on the group
-  it finds in the state directory, then exits 130 on INT, 143 on TERM and 1
+  it before `Popen`. The handler reads the group id from `pgid`, skips
+  Cleanup step 1, runs steps 2 to 4 below, removes the pidfile if one was
+  written, then exits 130 on INT, 143 on TERM and 1
   on a missed deadline. It covers launch-until-ready only and is cleared
   (`trap - EXIT INT TERM`) once ready: every agent tool call is a fresh
   shell, and an EXIT trap left armed would kill the app before Drive runs.
@@ -120,13 +121,16 @@ skill. A skipped precondition is a failure, not a pass.
 Its own step, run from a fresh shell with only the pidfile path in hand:
 
 1. Read the pidfile. If it is missing, print `fail: no pidfile at <path> —
-   nothing to stop` and exit 1.
+   nothing to stop` and exit 1. (A Launch interrupted before the pidfile
+   existed is torn down by its own trap, from `pgid`.)
 2. Decide whether the group is ours, in this order. If the leader pid is
    alive and its start time differs from the recorded one, the id was
-   reused by someone else: signal nothing. Else if `pgrep -g <pgid>` lists
-   members, the group is ours: a group id is not reused while any member
-   lives, even after a wrapper leader exited. Else the group is empty:
-   signal nothing and only remove the state directory.
+   reused by someone else: signal nothing, remove the pidfile and the state
+   directory, print `ok: <pgid> reused, nothing signalled` and exit 0.
+   Else if `pgrep -g <pgid>` lists members, the group is ours: a group id
+   is not reused while any member lives, even after a wrapper leader
+   exited. Else the group is empty: signal nothing and remove the state
+   directory and the pidfile.
 3. `kill -TERM -<pgid>`; poll `pgrep -g <pgid>` for up to 5 s; then
    `kill -KILL -<pgid>`. Treat "no such process" as already gone.
    Never `pkill` or `killall` by name: another session's server may share
