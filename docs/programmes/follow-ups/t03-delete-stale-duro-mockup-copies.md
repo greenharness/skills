@@ -1,7 +1,7 @@
 +++
 type = "task"
 mode = "afk"
-status = "open"
+status = "closed"
 blocked_by = []
 repos = ["duro-app", "application-landscape", "happier"]
 +++
@@ -30,3 +30,28 @@ deleted, and what still points to it?
 Per repository: delete the copy and repoint its mentions at
 `greenrack-mockup` in one PR, or keep it until that repository's
 greenrack sweep, with the reason.
+
+## Resolution
+
+2026-11-19: keep all three copies. Each one goes in its repository's
+greenrack sweep ([greenrack-rename t08](https://github.com/fredericrous/decisions/blob/main/docs/programmes/greenrack-rename/t08-fleet-sweep.md)),
+not in a PR of its own.
+
+- **duro-app, application-landscape, happier (`dev`):** all three are
+  still on `@duro-app/*` and none has `greenrack-mockup`. Each tracks the
+  copy, and each one's `.claude/hooks/duro-plan.sh` tells agents to load
+  it. duro-app's `CLAUDE.md:38` and `.github/workflows/ui-handoff.yml:78`
+  also name `/duro-mockup`, and so does happier's `apps/web/AGENTS.md:47`.
+  Deleting the copy now would leave those pointing at a skill that is not
+  there, with nothing to replace it until the repository is on greenrack.
+- **The sweep already replaces it:** `greenrack skill install` and
+  `hook install` migrate the copy and the hook. social-planner's sweep
+  (a21676a, #82) shows the swap: `greenrack-mockup` added, `duro-plan.sh`
+  renamed to `greenrack-plan.sh`, CLAUDE.md and the ignore files edited.
+  The sweep's leftover check (`sweep-app.sh`) fails on any `duro-mockup`
+  left in the repository, so the hand-written mentions above get caught.
+- **No gate is in the way:** no CI or hook config runs
+  `skill install --check`. The copies in worktrees are tracked files, so
+  they go when those worktrees do.
+- **Not a live mention:** `.adr/packs/decisions.pack` is regenerated from
+  the corpus, and `docs/plans/*` are history.
