@@ -202,8 +202,10 @@ pilots, a measurement before widening.
   signalled nothing, a missing pidfile exited 1.
 - After review, a wrapper leader that exits while a child lives was
   checked: group TERM emptied the group.
-- Not observed here: a SIGINT mid-launch, a second Launch refused, the
-  `O_EXCL` lock; the first pilot (sre-agent) runs them.
+- Not observed here: a SIGINT mid-launch and a second Launch refused; the
+  first pilot (sre-agent) runs them. The `O_EXCL` lock was dropped in review
+  (it had no release); two simultaneous Launches are unguarded, and the
+  generated skill says so.
 
 ## Decision log
 
@@ -219,8 +221,19 @@ pilots, a measurement before widening.
 - backend: round 1 approve-with-changes (1 high, 3 fixed), delta
   approve-with-changes (3 new, fixed). lang:python: approve-with-changes,
   then approve. unix: approve-with-changes twice (8 and 3 findings, fixed).
-- No third pass; the fixes since the delta are text-only
-  (`e53fac1`, `e9acf23`).
+- Last narrow pass on tree `381b5977` (`4fce253`): implementation-review
+  approve-with-changes, backend approve, unix approve-with-changes. The
+  lock was dropped, `pgid` named, the empty-group and reused-id branches
+  finished. Exit 0 with a distinct line for a reused group id (unix and
+  backend disagreed; both accept it).
+- deliberate: the trap's step 2 has no recorded start time before the
+  pidfile exists, so it falls through to the `pgrep -g` test (tiny window,
+  and an empty group is never signalled).
+- deliberate: an empty-group branch prints the step 4 `ok:` line rather
+  than a new message (the outcome is the same).
+- deliberate: a SIGINT between `Popen` and the `pgid` write leaves the group
+  unfound (one syscall wide); the pilot run will show if it matters.
+- No further pass: the fixes after the first delta were text-only.
 
 <!-- panel: repos=greenharness-skills,grh,sre-agent,duro-app adds=contract reviewers=backend,lang:python,architect,po,tui,unix body-sha=28c917710b1b -->
 
