@@ -183,7 +183,7 @@ laptop edited first):
   available`. (d) chrome-devtools itself, connected after the pre-step:
   `browser: chrome-devtools`. Then implementation review (F4b), PR, merge with
   merge-when-green.
-- [ ] Phase 2 — release and pin: a greenharness-skills release with
+- [x] Phase 2 — release and pin: a greenharness-skills release with
   tag-release (the next free minor; `v0.17.0` is the latest tag), then the pin
   in grh `catalog.toml` (`skills_version`, `skills_sha256`; it pins 0.16.0
   today) and `browser-check-runner` added to the workflow part's `skills`, 1
@@ -217,7 +217,7 @@ Phase 1 observed on 2026-11-19, tree 7ea5489 (the runner and test rows), and the
 | live (b) claude-in-chrome | `browser: claude-in-chrome`, tab opened and closed, Playwright's failure under `not checked` | **not verified.** The chain reached the step and reported cleanly (Playwright: exit 2, ENOTCACHED; Claude in Chrome tools absent), but `mcp__claude-in-chrome__*` tools load neither in this session nor in `claude -p --chrome`; the native host running belongs to the Claude desktop app. Open check, owner: the agent, in the next interactive Claude Code session with the extension connected, by 2026-11-26 |
 | live (c) non-local URL | `not checked: no browser available`, both failures listed | `https://example.com/`: both failures named, Claude in Chrome not tried (not a local host), no temp install left in the cache |
 | live (d) chrome-devtools | `browser: chrome-devtools` | `browser: chrome-devtools   profile: isolated`; the same heading and 4 lines as (a), 33 requests all 200/204 |
-| installed copies, after `grh install workflow` from the released grh | `diff` of the installed agent and runner against the released files: empty | Phase 2 |
+| installed copies, after `grh install workflow` from the released grh | `diff` of the installed agent and runner against the released files: empty | skills v0.18.0 (release run success; tarball matched `SHA256SUMS` 71d88f4b…; it holds the runner and the new agent text), grh#57 merged, grh v0.14.0 released (5 archives, the tap bumped itself), `brew upgrade` → grh 0.14.0, `grh install workflow -y --replace`: `diff` of the installed agent, `run.mjs` and `SKILL.md` against the release: empty, all three |
 
 ## Risks
 
@@ -236,6 +236,8 @@ Phase 1 observed on 2026-11-19, tree 7ea5489 (the runner and test rows), and the
 - 2026-11-19: grh already pinned skills 0.17.0 (grh#56, after the plan was written from a stale checkout); Phase 2 bumps it from there.
 - 2026-11-19: the agent proofs ran in fresh headless `claude -p` sessions (`--strict-mcp-config` with an empty MCP config for real chrome-devtools absence), since a running session does not reload agent definitions.
 - 2026-11-19: proof (b) could not drive Claude in Chrome here; Phase 1 closes with it as a dated open check rather than holding the runner, which (a), (c) and (d) prove.
+- 2026-11-19: grh released as 0.14.0, a minor rather than the planned patch, because the workflow part gains a skill.
+- 2026-11-19: the installed `browser-check.md` was a hand-placed copy grh did not own (`model: haiku`, older text), so `grh install` skipped it; `--replace` took it over, with grh's backup under `~/.local/state/grh/backup/1795112794/`.
 
 ## Implementation review
 
