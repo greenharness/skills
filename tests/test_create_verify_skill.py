@@ -69,6 +69,8 @@ class Generator(unittest.TestCase):
             "skips Cleanup steps 1 and 2",
             "does not take step 4's exit codes",
             "When a member survives it keeps the state directory",
+            "with no pidfile yet, it writes one",
+            "remove a lone `<pidfile>.log`",
             "print(path, flush=True)",
             "`<pidfile>.log`",
             "`pgrep -lg <pgid>`",

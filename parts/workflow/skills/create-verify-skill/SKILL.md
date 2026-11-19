@@ -135,8 +135,9 @@ ignored, add a negation for the skill's directory in the same change.
   (TERM, poll, KILL) and keeps the log, printing its path. When the group is
   empty it removes the state directory and the pidfile if one was written.
   When a member survives it keeps the state directory and the pidfile, so a
-  later Cleanup can finish, and prints
-  `fail: <pgid> still has <pids> — check pgrep -lg <pgid>`.
+  later Cleanup can finish (with no pidfile yet, it writes one: the group
+  id, the state directory, the log and a `null` start time), and prints
+  `fail: <pgid> still has <pids> — check pgrep -lg <pgid>` on stderr.
   It does not take step 4's exit codes: it exits `128 + signum` (129 on
   HUP, 130 on INT, 143 on TERM), and 1 on a missed deadline or a survivor.
   It covers
