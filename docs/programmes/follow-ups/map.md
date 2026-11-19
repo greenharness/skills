@@ -17,17 +17,20 @@ worth doing. Reached when no ticket here is open.
   process, signal and shared lessons are in `create-verify-skill`;
   launcher, untyped-config scan and role coverage wait for a third
   repository.
+- [t03](t03-delete-stale-duro-mockup-copies.md): the `duro-mockup` copies
+  in duro-app, application-landscape and happier stay until each
+  repository's greenrack sweep (greenrack-rename t08) replaces them.
 
 ## Handoff
 
-2026-11-19, boundary: t02 closed (the pilots' generator feedback folded
-into `create-verify-skill`).
+2026-11-19, boundary: t03 closed. The `duro-mockup` copies are kept, and
+each goes in its repository's greenrack sweep.
 
-- Done: [t02](t02-fold-pilot-feedback-into-generator.md); the kept-back
-  lessons (launcher, untyped-config scan, role coverage) are lines in the
-  plan's Decision log, waiting on a third repository.
-- Next: [t03](t03-delete-stale-duro-mockup-copies.md), then
-  [t01](t01-verify-skill-pilot-measure.md) on 2026-12-19.
+- Done: [t03](t03-delete-stale-duro-mockup-copies.md). The sweep's
+  `skill install` swaps each copy, and its leftover check catches the
+  mentions written by hand. Nothing changed in the three repositories.
+- Next: [t01](t01-verify-skill-pilot-measure.md), due 2026-12-19. No
+  ticket is ready before then.
 
 ## Not yet specified
 
