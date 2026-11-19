@@ -343,6 +343,16 @@ from about 2026-10-15).
   2026-12-19); folding the pilots' feedback into the generator is t02;
   deleting the drifted `duro-mockup` copies (the survey's follow-up) is
   t03.
+- t02 (2026-11-19) folded the process and signal items and the shared
+  lessons into the generator text; the one-syscall window under
+  Implementation review is closed there too (the mask across `Popen`).
+  Kept back until a third repository shows the pattern (rule of three):
+  (a) launch with the repository's own launcher (Phase 3 (1)): one pilot,
+  one package manager, and the fix is a debugging hint rather than a
+  rule; (b) a scan of the env names an untyped config reads (Phase 3
+  (3)): sre-agent's typed `Settings` guard was the other shape, and two
+  shapes do not yet name a general recipe; (c) which roles a recipe can
+  sign in as (Phase 3 (5)): one app with one fixed dev admin.
 
 ## Implementation review
 

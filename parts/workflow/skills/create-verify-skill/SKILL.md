@@ -30,7 +30,13 @@ five facts, each with the file it came from:
   log, exit code, database row).
 - **Isolate**: whether two instances can run side by side (own port, own
   data directory). If they cannot, the skill declines to drive a shared
-  instance and reports a blocker.
+  instance and reports a blocker. Isolation also covers what the app reads
+  besides its port and data: credentials and cluster config (a client built
+  from `KUBECONFIG` at boot reaches the real cluster), and files a framework
+  loads over the environment (a dev server that copies `.env*` from the
+  checkout over the process environment). Build the server's environment
+  from nothing, add only what the recipe names, and refuse a non-loopback
+  URL or remote server in it.
 
 If the checkout does not build or start, report that as a blocker before
 writing anything. Scaffolding you add to get it running is labelled and
@@ -47,6 +53,17 @@ see by hand which source moved since the recipe was written.
 Write for an agent with only this file in hand. Keep lines under 80
 columns. Five sections, named exactly as below.
 
+Put the steps in one stdlib-only helper beside the skill,
+`scripts/verify.py`, with a subcommand for each (`launch`, `doctor`,
+`drive`, `cleanup`), and have SKILL.md call it. Both pilots ran a helper
+more reliably than inline shell, and their reviews found signal-window
+bugs that inline shell would have hidden. The repository's own lint and
+format rules apply to the helper (a ruff `S` or `T20` selection, say).
+
+The skill is committed: before writing it, `git check-ignore -v
+.claude/skills/verify-<app>/SKILL.md` must print nothing. If `.claude/` is
+ignored, add a negation for the skill's directory in the same change.
+
 ### Launch
 
 - The command from an empty data directory, and the readiness signal from
@@ -55,18 +72,23 @@ columns. Five sections, named exactly as below.
 - Non-interactive: `CI=1 NO_COLOR=1`, a free port (bind port 0, read it
   back, and retry Launch once on a new port if the bind then fails), no
   prompt that can stall. Output goes to a log file, never to the session.
-  On a timeout print the last 20 log lines to stderr, and the log path.
+  On a timeout print the last 20 log lines to stderr, the log path, and
+  the last readiness check that failed.
 - Say how a login is provided (a dev-login switch, a seeded throwaway
   account). Never a real password and never a session token. The preview
   guide's `Sign in:` line cites this.
-- The state directory comes from `mktemp -d` and holds the log. The pidfile
-  lives outside the repository at
+- The state directory comes from `mktemp -d` and holds the server's data.
+  The log lives outside it (beside the pidfile, `<pidfile>.log`): the
+  teardown of a failed Launch removes the state directory, and the log is
+  what explains the failure. The pidfile lives outside the repository at
   `${TMPDIR:-/tmp}/verify-<app>-<h>.json`, where `<h>` is the first 12 hex
   characters of the sha1 of the worktree's real path. Launch prints that
-  path as its only stdout line and Cleanup takes it as its argument. If a
-  pidfile is already there and its group is still alive, Launch stops with
-  `fail:` and starts nothing. Two Launches started at the same instant are
-  not guarded against; say so in the generated skill.
+  path as its only stdout line, before it starts anything, so a SIGKILLed
+  Launch still leaves its caller the path; Cleanup takes it as its
+  argument. If a pidfile is already there and its group is still alive,
+  Launch stops with `fail:` and starts nothing. Two Launches started at
+  the same instant are not guarded against; say so in the generated
+  skill.
 - Start the server as the leader of its own process group, so Cleanup can
   signal exactly the tree you started. macOS has no `setsid(1)`; use
   Python's `subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log,
@@ -76,20 +98,40 @@ columns. Five sections, named exactly as below.
 - Right after `Popen`, write the group id to a file named `pgid` in the
   state directory, so an interrupt before the pidfile exists still has
   something to tear down. Then write the pidfile as JSON (group id, leader
-  pid, the leader's start time from `ps -o lstart=`, the command and the
-  state directory) to a temporary name in the same directory, and rename
-  it into place, so no reader sees half a file.
+  pid, the command, the state directory and the log path) to a temporary
+  name in the same directory, and rename it into place, so no reader sees
+  half a file. Write it before any slow call: the leader's start time
+  (`ps -o lstart=`) is added in a second write once `ps` returns, and
+  until then the start time is `null`.
+- Hold HUP, INT and TERM from just before `Popen` until the pidfile is on
+  disk: `signal.pthread_sigmask(signal.SIG_BLOCK, held)`, released in a
+  `finally`. A signal that arrives meanwhile is delivered when the block
+  ends, so no interrupt lands between `Popen` and the `pgid` write. Use a
+  mask, never `SIG_IGN`: changing a disposition while a signal is pending
+  races. A blocked mask survives exec, so pass
+  `preexec_fn=<unblock the held signals>` to `Popen`; without it the
+  server would ignore Cleanup's TERM. HUP is held too: a closed tool-call
+  shell must tear the attempt down, since the server runs in its own
+  session and would outlive the launcher.
 - Check readiness against your own tree: list the listeners with
   `lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, map each pid to its group with
   `ps -o pgid= -p <pid>`, and require the recorded group id. A foreign
   server on the same port must never count as ready.
-- A `trap` on EXIT INT TERM tears down a failed or interrupted launch. Arm
-  it before `Popen`. The handler reads the group id from `pgid`, skips
-  Cleanup step 1, runs steps 2 to 4 below, removes the pidfile if one was
-  written, then exits 130 on INT, 143 on TERM and 1
-  on a missed deadline. It covers launch-until-ready only and is cleared
-  (`trap - EXIT INT TERM`) once ready: every agent tool call is a fresh
-  shell, and an EXIT trap left armed would kill the app before Drive runs.
+- Tear down a failed or interrupted launch from handlers for HUP, INT and
+  TERM, installed before `Popen`, and a `try`/`except BaseException`
+  around launch-until-ready. The handler raises once; a second signal
+  re-blocks the held set and returns, so it never raises into the
+  teardown, and each `except` clause blocks the held set before it tears
+  down. Release the mask before a bind-failed retry. The teardown reads
+  the group id from `pgid`, skips Cleanup step 1, runs steps 2 to 4 below,
+  removes the pidfile if one was written, then exits 129 on HUP, 130 on
+  INT, 143 on TERM and 1 on a missed deadline. It covers launch-until-ready
+  only: once ready, the launcher exits and leaves the app up, since every
+  agent tool call is a fresh process. A shell recipe (no helper) arms a
+  `trap` on EXIT HUP INT TERM instead and clears it
+  (`trap - EXIT HUP INT TERM`) once ready, or an EXIT trap left armed
+  would kill the app before Drive runs; it cannot hold signals across the
+  start, so say in the generated skill that it keeps that window.
 
 ### Doctor
 
@@ -98,6 +140,12 @@ line, `ok: <what>` or `fail: <what> — run <command>`, with `fail:` lines on
 stderr, and exits 0 when ready, 1 when not ready and 2 when a precondition
 is missing. Keep the line under 80 columns and the command copy-pasteable.
 Run it before Drive; a failing Doctor is a blocker report, not a repair.
+
+Doctor checks what the app wired, not only that it answers: a health
+route can stay 200 while the app fell back to a do-nothing stand-in (an
+empty cluster config gave one pilot a no-op orchestrator behind a green
+`/readyz`). Read the evidence that the real component is in place, from a
+status route, a startup log line or a first real request.
 
 ### Drive
 
@@ -127,25 +175,34 @@ Its own step, run from a fresh shell with only the pidfile path in hand:
    alive and its start time differs from the recorded one, the id was
    reused by someone else: signal nothing, remove the pidfile and the state
    directory, print `ok: <pgid> reused, nothing signalled` and exit 0.
-   Else if `pgrep -g <pgid>` lists members, the group is ours: a group id
-   is not reused while any member lives, even after a wrapper leader
-   exited. Else the group is empty: signal nothing and remove the state
-   directory and the pidfile.
+   A `null` start time (Launch was stopped before `ps` returned) skips
+   this test. Else if `pgrep -g <pgid>` lists members, the group is ours:
+   a group id is not reused while any member lives, even after a wrapper
+   leader exited. Else the group is empty: signal nothing and remove the
+   state directory and the pidfile. To show a person what a group holds,
+   `pgrep -lg <pgid>` lists its members with their names; `ps -g` does not
+   select by group on macOS.
 3. `kill -TERM -<pgid>`; poll `pgrep -g <pgid>` for up to 5 s; then
-   `kill -KILL -<pgid>`. Treat "no such process" as already gone.
+   `kill -KILL -<pgid>`. Treat "no such process" as already gone. macOS
+   can answer `EPERM` (`PermissionError` from `os.killpg`) for a group
+   whose leader has just exited: treat it as gone only when
+   `pgrep -g <pgid>` then lists nothing, and as a failure otherwise.
    Never `pkill` or `killall` by name: another session's server may share
    the name.
 4. If members survive the KILL, print `fail: <pgid> still has <pids>`,
    keep the state directory and exit 1. Otherwise remove the state
-   directory and the pidfile, print `ok: stopped <pgid>, removed <dir>` and
-   exit 0.
+   directory, the pidfile and its log, print
+   `ok: stopped <pgid>, removed <dir>` and exit 0.
 
 Evidence must survive cleanup: copy it out first.
 
 ## 3. Map the features
 
 Add `features/README.md` as an index and one file for each of the three to
-five most important features. Each file has four parts: sub-features, how to
+five most important features. Write them after driving the app, from what it
+showed: feature files written from reading the code alone were wrong in
+three of four in a pilot (seed names, a button only one role sees, a panel
+no route opens, tab names). Each file has four parts: sub-features, how to
 get to it, driving it, and gotchas (the traps the repository's prose already
 warns about, such as a cold-start reload or a flag that must be set). A
 missing precondition is reported as a failure; never weaken a journey to
@@ -164,6 +221,11 @@ A second Launch while the first is up exits non-zero with `fail:` and
 starts nothing. Interrupt a Launch before it is ready: no listener, no
 state directory and no pidfile may remain. Run Cleanup after a failed
 attempt too.
+
+Then hand the skill to a fresh agent with only the skill in hand, as
+`worktree-task` F2 would read it, on one feature. The skill is done when
+that run passes; a failure is fixed in the skill or its feature files,
+and the fresh run is repeated.
 
 A generated skill that was never executed is a draft: say so. If you ran it
 in a stand-in environment, list every setup step that stayed unverified on

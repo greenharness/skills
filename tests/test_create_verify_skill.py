@@ -44,13 +44,33 @@ class Generator(unittest.TestCase):
     def test_per_call_shell_rules_are_stated(self):
         for needle in (
             "start_new_session=True",
-            "trap - EXIT INT TERM",
+            "trap - EXIT HUP INT TERM",
             "Never `pkill` or `killall` by name",
             "ok: <what>",
             "generated-from:",
             "stdin=subprocess.DEVNULL",
             "ps -o pgid= -p <pid>",
             "pgrep -g <pgid>",
+        ):
+            with self.subTest(needle):
+                self.assertIn(needle, self.text)
+
+    def test_pilot_process_rules_are_stated(self):
+        """The two pilots' process and signal lessons (follow-ups t02)."""
+        for needle in (
+            "signal.pthread_sigmask(signal.SIG_BLOCK, held)",
+            "never `SIG_IGN`",
+            "preexec_fn=",
+            "129 on HUP",
+            "before it starts anything",
+            "The log lives outside it",
+            "`pgrep -lg <pgid>`",
+            "treat it as gone only when",
+            "`scripts/verify.py`",
+            "git check-ignore -v",
+            "Doctor checks what the app wired",
+            "Write them after driving the app",
+            "credentials and cluster config",
         ):
             with self.subTest(needle):
                 self.assertIn(needle, self.text)

@@ -13,18 +13,21 @@ worth doing. Reached when no ticket here is open.
 
 ## Decisions so far
 
-- None yet.
+- [t02](t02-fold-pilot-feedback-into-generator.md): the pilots'
+  process, signal and shared lessons are in `create-verify-skill`;
+  launcher, untyped-config scan and role coverage wait for a third
+  repository.
 
 ## Handoff
 
-2026-11-19, boundary: create-verify-skill Phase 3 (the duro-app pilot)
-merged, and the plan closed.
+2026-11-19, boundary: t02 closed (the pilots' generator feedback folded
+into `create-verify-skill`).
 
-- Filed: [t01](t01-verify-skill-pilot-measure.md), the plan's Phase 4
-  measure, due 2026-12-19; [t02](t02-fold-pilot-feedback-into-generator.md),
-  the pilots' generator feedback; [t03](t03-delete-stale-duro-mockup-copies.md),
-  the drifted `duro-mockup` copies the plan's survey named.
-- Next: t02, t03, then t01 on its date.
+- Done: [t02](t02-fold-pilot-feedback-into-generator.md); the kept-back
+  lessons (launcher, untyped-config scan, role coverage) are lines in the
+  plan's Decision log, waiting on a third repository.
+- Next: [t03](t03-delete-stale-duro-mockup-copies.md), then
+  [t01](t01-verify-skill-pilot-measure.md) on 2026-12-19.
 
 ## Not yet specified
 
