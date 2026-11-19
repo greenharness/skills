@@ -89,6 +89,13 @@ Standing rule: **never use `gh pr merge --auto`** on a repository without branch
    only when nothing of this session is in flight (uncommitted or unpushed
    work, an open PR, a background task or run, an unanswered question),
    end with that line, last, with a one-line prompt and no backtick in it.
+   In a programme the prompt names one ticket: run
+   `relais programme next --from <repo>:<programme> --claim` and write
+   `resume <repo> <programme> <ticket>: <gist>`. On exit 22 it printed a
+   `parked: …` line: end with `safe to /clear; ` followed by that line
+   instead. On any other exit, report relais's stderr line and print no clear
+   line. Without relais, name the map's own next ticket or park; a next step
+   that is the person's parks too.
 
 ## Another forge
 
