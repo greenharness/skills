@@ -79,16 +79,19 @@ ignored, add a negation for the skill's directory in the same change.
   guide's `Sign in:` line cites this.
 - The state directory comes from `mktemp -d` and holds the server's data.
   The log lives outside it (beside the pidfile, `<pidfile>.log`): the
-  teardown of a failed Launch removes the state directory, and the log is
-  what explains the failure. The pidfile lives outside the repository at
+  teardown of a failed Launch removes the state directory and keeps the log
+  on purpose, since it explains the failure. Launch opens the log only after
+  the alive-group check passes, emptying what a failed attempt left;
+  Cleanup removes it. The pidfile lives outside the repository at
   `${TMPDIR:-/tmp}/verify-<app>-<h>.json`, where `<h>` is the first 12 hex
   characters of the sha1 of the worktree's real path. Launch prints that
-  path as its only stdout line, before it starts anything, so a SIGKILLed
-  Launch still leaves its caller the path; Cleanup takes it as its
-  argument. If a pidfile is already there and its group is still alive,
-  Launch stops with `fail:` and starts nothing. Two Launches started at
-  the same instant are not guarded against; say so in the generated
-  skill.
+  path as its only stdout line, before it starts anything, and flushes it
+  (`print(path, flush=True)`: a tool call's stdout is a pipe, which Python
+  buffers), so a SIGKILLed Launch still leaves its caller the path; Cleanup
+  takes it as its argument. If a pidfile is already there and its group is
+  still alive, Launch stops with `fail:` and starts nothing. Two Launches
+  started at the same instant are not guarded against; say so in the
+  generated skill.
 - Start the server as the leader of its own process group, so Cleanup can
   signal exactly the tree you started. macOS has no `setsid(1)`; use
   Python's `subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log,
@@ -99,39 +102,44 @@ ignored, add a negation for the skill's directory in the same change.
   state directory, so an interrupt before the pidfile exists still has
   something to tear down. Then write the pidfile as JSON (group id, leader
   pid, the command, the state directory and the log path) to a temporary
-  name in the same directory, and rename it into place, so no reader sees
-  half a file. Write it before any slow call: the leader's start time
-  (`ps -o lstart=`) is added in a second write once `ps` returns, and
-  until then the start time is `null`.
+  name in the same directory, and move it into place with
+  `os.replace(tmp, path)`, so no reader sees half a file. Write it before
+  any slow call: the leader's start time (`ps -o lstart=`) is added in a
+  second write once `ps` returns, and until then the start time is `null`.
 - Hold HUP, INT and TERM from just before `Popen` until the pidfile is on
   disk: `signal.pthread_sigmask(signal.SIG_BLOCK, held)`, released in a
-  `finally`. A signal that arrives meanwhile is delivered when the block
-  ends, so no interrupt lands between `Popen` and the `pgid` write. Use a
-  mask, never `SIG_IGN`: changing a disposition while a signal is pending
-  races. A blocked mask survives exec, so pass
-  `preexec_fn=<unblock the held signals>` to `Popen`; without it the
-  server would ignore Cleanup's TERM. HUP is held too: a closed tool-call
-  shell must tear the attempt down, since the server runs in its own
-  session and would outlive the launcher.
+  `finally` that sits inside the guarded block below. A signal that arrives
+  meanwhile is delivered when the mask is released, and its handler raises
+  there, into the teardown; so no interrupt lands between `Popen` and the
+  `pgid` write. Use a mask, never `SIG_IGN`: changing a disposition while a
+  signal is pending races. A blocked mask survives exec, so pass
+  `preexec_fn=<unblock the held signals>` to `Popen`; without it the server
+  would ignore Cleanup's TERM. The launcher stays single-threaded:
+  `preexec_fn` is not safe once a thread exists. HUP is held too: a closed
+  tool-call shell must tear the attempt down, since the server runs in its
+  own session and would outlive the launcher.
 - Check readiness against your own tree: list the listeners with
   `lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, map each pid to its group with
   `ps -o pgid= -p <pid>`, and require the recorded group id. A foreign
   server on the same port must never count as ready.
 - Tear down a failed or interrupted launch from handlers for HUP, INT and
-  TERM, installed before `Popen`, and a `try`/`except BaseException`
-  around launch-until-ready. The handler raises once; a second signal
-  re-blocks the held set and returns, so it never raises into the
-  teardown, and each `except` clause blocks the held set before it tears
-  down. Release the mask before a bind-failed retry. The teardown reads
-  the group id from `pgid`, skips Cleanup step 1, runs steps 2 to 4 below,
-  removes the pidfile if one was written, then exits 129 on HUP, 130 on
-  INT, 143 on TERM and 1 on a missed deadline. It covers launch-until-ready
-  only: once ready, the launcher exits and leaves the app up, since every
-  agent tool call is a fresh process. A shell recipe (no helper) arms a
-  `trap` on EXIT HUP INT TERM instead and clears it
-  (`trap - EXIT HUP INT TERM`) once ready, or an EXIT trap left armed
-  would kill the app before Drive runs; it cannot hold signals across the
-  start, so say in the generated skill that it keeps that window.
+  TERM, installed before `Popen`, and a `try`/`except BaseException` around
+  launch-until-ready. The handler raises once, an `Interrupted(signum)` that
+  subclasses `BaseException`, so no `except Exception` around a tool call
+  swallows it; a second signal re-blocks the held set and returns, so it
+  never raises into the teardown, and each `except` clause blocks the held
+  set before it tears down. Release the mask before a bind-failed retry. The
+  teardown reads the group id from `pgid`, skips Cleanup step 1, runs steps
+  2 to 4 below, removes the pidfile if one was written, then exits
+  `128 + signum` (129 on HUP, 130 on INT, 143 on TERM) and 1 on a missed
+  deadline.
+  It covers launch-until-ready only: once ready, the launcher exits and
+  leaves the app up, since every agent tool call is a fresh process. A shell
+  recipe (no helper) arms a `trap` on EXIT HUP INT TERM instead, exiting
+  with the same codes, and clears it (`trap - EXIT HUP INT TERM`) once
+  ready, or an EXIT trap left armed would kill the app before Drive runs; it
+  cannot hold signals across the start, so say in the generated skill that
+  it keeps that window.
 
 ### Doctor
 
@@ -170,20 +178,30 @@ Its own step, run from a fresh shell with only the pidfile path in hand:
 
 1. Read the pidfile. If it is missing, print `fail: no pidfile at <path> —
    nothing to stop` and exit 1. (A Launch interrupted before the pidfile
-   existed is torn down by its own trap, from `pgid`.)
-2. Decide whether the group is ours, in this order. If the leader pid is
-   alive and its start time differs from the recorded one, the id was
-   reused by someone else: signal nothing, remove the pidfile and the state
-   directory, print `ok: <pgid> reused, nothing signalled` and exit 0.
-   A `null` start time (Launch was stopped before `ps` returned) skips
-   this test. Else if `pgrep -g <pgid>` lists members, the group is ours:
-   a group id is not reused while any member lives, even after a wrapper
-   leader exited. Else the group is empty: signal nothing and remove the
-   state directory and the pidfile. To show a person what a group holds,
-   `pgrep -lg <pgid>` lists its members with their names; `ps -g` does not
-   select by group on macOS.
+   existed is torn down by its own handlers, or its trap in a shell
+   recipe, from `pgid`.)
+2. Decide whether the group is ours, in this order:
+   - Recorded start time, leader alive, start time differs: the id was
+     reused by someone else. Signal nothing, remove the pidfile, its log
+     and the state directory, print `ok: <pgid> reused, nothing
+     signalled` and exit 0.
+   - Start time `null` (Launch was stopped before `ps` returned), which
+     cannot show reuse: the group is ours only when the leader pid is
+     alive, `ps -o pgid= -p <pid>` is the recorded group id and
+     `ps -o command= -p <pid>` matches the recorded command. Otherwise
+     signal nothing, remove the same three, print
+     `ok: <pgid> unverified, nothing signalled` and exit 0.
+   - Else if `pgrep -g <pgid>` lists members, the group is ours: a group
+     id is not reused while any member lives, even after a wrapper leader
+     exited.
+   - Else the group is empty: signal nothing and remove the state
+     directory, the pidfile and its log.
+
+   To show a person what a group holds, `pgrep -lg <pgid>` lists its
+   members with their names; `ps -g` does not select by group on macOS.
 3. `kill -TERM -<pgid>`; poll `pgrep -g <pgid>` for up to 5 s; then
-   `kill -KILL -<pgid>`. Treat "no such process" as already gone. macOS
+   `kill -KILL -<pgid>`. Treat "no such process" (`ProcessLookupError`)
+   as already gone. macOS
    can answer `EPERM` (`PermissionError` from `os.killpg`) for a group
    whose leader has just exited: treat it as gone only when
    `pgrep -g <pgid>` then lists nothing, and as a failure otherwise.
