@@ -64,6 +64,8 @@ class Generator(unittest.TestCase):
             "`Interrupted(signum)`",
             "`fail: <pgid> unverified, members <pids>",
             "ps -ww -o command=",
+            '`" ".join(argv)`',
+            "keep the pidfile, its log and the state directory",
             "print(path, flush=True)",
             "`<pidfile>.log`",
             "`pgrep -lg <pgid>`",

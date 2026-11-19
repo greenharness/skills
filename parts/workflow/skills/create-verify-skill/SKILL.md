@@ -101,7 +101,8 @@ ignored, add a negation for the skill's directory in the same change.
 - Right after `Popen`, write the group id to a file named `pgid` in the
   state directory, so an interrupt before the pidfile exists still has
   something to tear down. Then write the pidfile as JSON (group id, leader
-  pid, the command, the state directory and the log path) to a temporary
+  pid, the command as the argv list passed to `Popen` with no
+  `shell=True`, the state directory and the log path) to a temporary
   name in the same directory, and move it into place with
   `os.replace(tmp, path)`, so no reader sees half a file. Write it before
   any slow call: the leader's start time (`ps -o lstart=`) is added in a
@@ -129,17 +130,17 @@ ignored, add a negation for the skill's directory in the same change.
   swallows it; a second signal re-blocks the held set and returns, so it
   never raises into the teardown, and each `except` clause blocks the held
   set before it tears down. Release the mask before a bind-failed retry. The
-  teardown reads the group id from `pgid`, skips Cleanup step 1, runs steps
-  2 to 4 below, removes the pidfile if one was written, then exits
+  teardown reads the group id from `pgid`, skips Cleanup step 1 and step 2's
+  start-time tests (Launch spawned the group, so live members are its own),
+  runs steps 3 and 4, removes the pidfile if one was written, then exits
   `128 + signum` (129 on HUP, 130 on INT, 143 on TERM) and 1 on a missed
-  deadline.
-  It covers launch-until-ready only: once ready, the launcher exits and
-  leaves the app up, since every agent tool call is a fresh process. A shell
-  recipe (no helper) arms a `trap` on EXIT HUP INT TERM instead, exiting
-  with the same codes, and clears it (`trap - EXIT HUP INT TERM`) once
-  ready, or an EXIT trap left armed would kill the app before Drive runs; it
-  cannot hold signals across the start, so say in the generated skill that
-  it keeps that window.
+  deadline. It covers launch-until-ready only: once ready, the launcher
+  exits and leaves the app up, since every agent tool call is a fresh
+  process. A shell recipe (no helper) arms a `trap` on EXIT HUP INT TERM
+  instead, exiting with the same codes, and clears it
+  (`trap - EXIT HUP INT TERM`) once ready, or an EXIT trap left armed would
+  kill the app before Drive runs; it cannot hold signals across the start,
+  so say in the generated skill that it keeps that window.
 
 ### Doctor
 
@@ -188,8 +189,11 @@ Its own step, run from a fresh shell with only the pidfile path in hand:
    - Start time `null` (Launch was stopped before `ps` returned), which
      cannot show reuse: the group is ours only when the leader pid is
      alive, `ps -o pgid= -p <pid>` is the recorded group id and
-     `ps -ww -o command= -p <pid>` (full width) equals the recorded argv
-     joined with `shlex.join`. Otherwise, if `pgrep -g <pgid>` lists
+     `ps -ww -o command= -p <pid>` (full width), stripped, equals the
+     recorded argv joined with single spaces, `" ".join(argv)`, which is
+     how `ps` prints it, unquoted. A script started through its `#!` line
+     shows its interpreter first, so record the argv with the interpreter
+     written out. Otherwise, if `pgrep -g <pgid>` lists
      members, they may be our server behind an exited wrapper: signal
      nothing, keep the pidfile, its log and the state directory, print
      `fail: <pgid> unverified, members <pids> — check pgrep -lg <pgid>`
