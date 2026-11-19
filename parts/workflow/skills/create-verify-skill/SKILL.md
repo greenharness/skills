@@ -60,27 +60,33 @@ columns. Five sections, named exactly as below.
   account). Never a real password and never a session token. The preview
   guide's `Sign in:` line cites this.
 - The state directory comes from `mktemp -d` and holds the log. The pidfile
-  lives outside the repository at a path keyed by the worktree, for example
-  `${TMPDIR:-/tmp}/verify-<app>-<hash of the worktree path>.json`. Launch
-  prints that path as its only stdout line and Cleanup takes it as its
-  argument. If a pidfile is already there and its group is still alive,
-  Launch stops with `fail:` and does not start a second server.
+  lives outside the repository at
+  `${TMPDIR:-/tmp}/verify-<app>-<h>.json`, where `<h>` is the first 12 hex
+  characters of the sha1 of the worktree's real path. Launch prints that
+  path as its only stdout line and Cleanup takes it as its argument. Take
+  an exclusive lock file next to it (`O_EXCL`) before `Popen`, so two
+  Launches cannot both start; if a pidfile is already there and its group
+  is still alive, Launch stops with `fail:` and starts nothing.
 - Start the server as the leader of its own process group, so Cleanup can
   signal exactly the tree you started. macOS has no `setsid(1)`; use
   Python's `subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log,
   stderr=subprocess.STDOUT, start_new_session=True)`, with `log` opened in
   append mode and closed in the launcher once `Popen` returns, so the tool
   call does not wait on a pipe. The group id is `proc.pid`.
-- Write the pidfile as JSON (group id, leader pid, the leader's start time
-  from `ps -o lstart=`, the command and the state directory) to a temporary
-  name, then rename it into place, so no reader sees half a file.
+- Right after `Popen`, write the group id to a file in the state directory,
+  so an interrupt before the pidfile exists still has something to tear
+  down. Then write the pidfile as JSON (group id, leader pid, the leader's
+  start time from `ps -o lstart=`, the command and the state directory) to
+  a temporary name in the same directory, and rename it into place, so no
+  reader sees half a file.
 - Check readiness against your own tree: list the listeners with
   `lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, map each pid to its group with
   `ps -o pgid= -p <pid>`, and require the recorded group id. A foreign
   server on the same port must never count as ready.
 - A `trap` on EXIT INT TERM tears down a failed or interrupted launch. Arm
-  it before `Popen`, exit 130 on INT, 143 on TERM and 1 on a missed
-  deadline. It covers launch-until-ready only and is cleared
+  it before `Popen`. The handler runs the Cleanup steps below on the group
+  it finds in the state directory, then exits 130 on INT, 143 on TERM and 1
+  on a missed deadline. It covers launch-until-ready only and is cleared
   (`trap - EXIT INT TERM`) once ready: every agent tool call is a fresh
   shell, and an EXIT trap left armed would kill the app before Drive runs.
 
@@ -115,11 +121,12 @@ Its own step, run from a fresh shell with only the pidfile path in hand:
 
 1. Read the pidfile. If it is missing, print `fail: no pidfile at <path> —
    nothing to stop` and exit 1.
-2. Decide whether the group is ours. If `pgrep -g <pgid>` lists members, it
-   is: a group id is not reused while any member lives, even after a wrapper
-   leader exited. If the group is empty, signal nothing and only remove the
-   state directory. If the leader pid is alive but its start time differs
-   from the recorded one, it belongs to someone else: signal nothing.
+2. Decide whether the group is ours, in this order. If the leader pid is
+   alive and its start time differs from the recorded one, the id was
+   reused by someone else: signal nothing. Else if `pgrep -g <pgid>` lists
+   members, the group is ours: a group id is not reused while any member
+   lives, even after a wrapper leader exited. Else the group is empty:
+   signal nothing and only remove the state directory.
 3. `kill -TERM -<pgid>`; poll `pgrep -g <pgid>` for up to 5 s; then
    `kill -KILL -<pgid>`. Treat "no such process" as already gone.
    Never `pkill` or `killall` by name: another session's server may share
@@ -149,8 +156,9 @@ up between them. Then confirm: Doctor exits 0 while the app is up; the
 evidence file exists and `git status` shows nothing new; after Cleanup the
 process group is empty (`pgrep -g <pgid>`), a decoy process with the same
 name as the server is still alive, and the state directory is gone.
-Interrupt a second Launch before it is ready: no listener and no state
-directory may remain. Run Cleanup after a failed attempt too.
+A second Launch while the first is up exits non-zero with `fail:` and
+starts nothing. Interrupt a Launch before it is ready: no listener, no
+state directory and no pidfile may remain. Run Cleanup after a failed attempt too.
 
 A generated skill that was never executed is a draft: say so. If you ran it
 in a stand-in environment, list every setup step that stayed unverified on
