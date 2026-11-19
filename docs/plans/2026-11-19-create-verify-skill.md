@@ -207,6 +207,28 @@ pilots, a measurement before widening.
   (it had no release); two simultaneous Launches are unguarded, and the
   generated skill says so.
 
+## Baseline (sre-agent, written before Phase 2)
+
+From the session transcripts of sre-agent's last 5 plans (all at the
+projects root). Repairs count a failed F2 check fixed and re-run;
+wall time runs from the first F2 command to the first verdict.
+
+| Plan | F2 check | Repairs | Blockers | Wall min |
+|---|---|---|---|---|
+| ci-fetches-release-assets | CI step under `env -i` | 0 | Linux binary won't run on macOS | 11 |
+| thanos-skeleton | focused pytest, evals via port-forward | 1 (zsh glob) | none | 10 |
+| claude-routing-and-budget | prod SQLite copy migrated, rolled back | 0 | none | 0.5 |
+| the-ladder | full suite with fakes | 1 (a test after review) | live smoke after release | 8 |
+| one-ticket-per-firing-alert | ticket-vision dev server + curl, pytest | 2 (zsh glob, curl script) | a land refused once | 18 |
+
+- Totals: 4 repairs over 5 plans (median 1); median 10 min to the
+  first verdict. Plan 1's 2 repairs on a kb-vision prototype are not
+  counted (another repo).
+- Kept out of the median: the-ladder's post-release live smoke (about
+  193 min, 2 repairs, found 2 production gaps); it is not pre-push F2.
+- None of the 5 started sre-agent itself; the pilot's F2 starts it, so
+  Phase 4 compares against F2 work of a different shape.
+
 ## Decision log
 
 - 2026-11-19: the person approved the plan as written; duro-app stays the
