@@ -102,7 +102,11 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    what comes next into the plan or programme map. Then, only when nothing
    of this session is in flight (uncommitted or unpushed work, an open PR,
    a background task or run, an unanswered question), end with that line,
-   last, with a one-line prompt and no backtick in it.
+   last, with a one-line prompt and no backtick in it. In a programme the
+   prompt names one ticket: run
+   `relais programme next --from <repo>:<programme> --claim` and write
+   `resume <repo> <programme> <ticket>: <gist>`; on exit 22 end with the
+   `safe to /clear; parked: …` line it printed instead.
 
 ## Recovery if the tag ended up on the wrong commit
 

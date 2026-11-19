@@ -684,10 +684,24 @@ If anything is in flight, say what it is and print no handoff line.
    - The prompt is one line, not empty, at most 2,000 characters, with no
      backtick in it.
    - It is what a fresh session needs to resume: for example
-     `resume <programme> <ticket id>: <gist>`, or
      `implement docs/plans/<file> in <repo>`.
-   - When the next step is the person's, the prompt says so: for example
-     `what is next on <programme>; the person's steps are in its map`.
+   - **In a programme it names one ticket that no other session holds.**
+     Run
+     `relais programme next --from <repo>:<programme> --claim`. It chooses
+     the first unheld ready ticket of this programme, else one of a
+     programme no session is on, and reserves it for the next session.
+     - Exit 0: its stdout is `<repo> <programme> <ticket>` then a tab and the
+       ticket's name. The prompt is
+       `resume <repo> <programme> <ticket>: <gist>`, and nothing open-ended.
+     - Exit 22: nothing is left for an agent. End with
+       ``safe to /clear; parked: next due <date>``, the line `next` printed,
+       instead of a `next:` line. The relay submits nothing on it.
+     - Any other exit: say relais's stderr line, print no clear line, and
+       never fall back to an open-ended prompt.
+     - Without relais: name the map's own next ticket, or park. Never name
+       another programme from memory.
+   - When the next step is the person's, park: the map's Handoff already
+     carries the person's steps.
    - A clear-relay plugin, when installed, clears and submits the prompt
      after a countdown the person can stop. Without it, the person types
      `/clear` and pastes the prompt.
