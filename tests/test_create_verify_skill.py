@@ -66,6 +66,8 @@ class Generator(unittest.TestCase):
             "ps -ww -o command=",
             '`" ".join(argv)`',
             "keep the pidfile, its log and the state directory",
+            "skips Cleanup steps 1 and 2",
+            "does not take step 4's exit codes",
             "print(path, flush=True)",
             "`<pidfile>.log`",
             "`pgrep -lg <pgid>`",

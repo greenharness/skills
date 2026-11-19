@@ -130,11 +130,13 @@ ignored, add a negation for the skill's directory in the same change.
   swallows it; a second signal re-blocks the held set and returns, so it
   never raises into the teardown, and each `except` clause blocks the held
   set before it tears down. Release the mask before a bind-failed retry. The
-  teardown reads the group id from `pgid`, skips Cleanup step 1 and step 2's
-  start-time tests (Launch spawned the group, so live members are its own),
-  runs steps 3 and 4, removes the pidfile if one was written, then exits
-  `128 + signum` (129 on HUP, 130 on INT, 143 on TERM) and 1 on a missed
-  deadline. It covers launch-until-ready only: once ready, the launcher
+  teardown reads the group id from `pgid` and skips Cleanup steps 1 and 2:
+  Launch spawned the group, so live members are its own. It runs step 3
+  (TERM, poll, KILL), names any survivor on stderr, removes the state
+  directory and the pidfile if one was written, and keeps the log, printing
+  its path. It does not take step 4's exit codes: it exits `128 + signum`
+  (129 on HUP, 130 on INT, 143 on TERM), and 1 on a missed deadline or a
+  survivor. It covers launch-until-ready only: once ready, the launcher
   exits and leaves the app up, since every agent tool call is a fresh
   process. A shell recipe (no helper) arms a `trap` on EXIT HUP INT TERM
   instead, exiting with the same codes, and clears it
