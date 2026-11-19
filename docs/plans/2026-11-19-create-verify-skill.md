@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 branch: feat/create-verify-skill
 repos: [greenharness-skills, grh, sre-agent, duro-app]
 programme: none
@@ -160,10 +160,12 @@ pilots, a measurement before widening.
 - [x] Phase 2 — pilot in sre-agent, 1 PR:
   `.claude/skills/verify-sre-agent/SKILL.md`,
   `.claude/skills/verify-sre-agent/features/README.md`
-- [ ] Phase 3 — pilot in duro-app, 1 PR:
+- [x] Phase 3 — pilot in duro-app, 1 PR:
   `.claude/skills/verify-duro-app/SKILL.md`,
   `.claude/skills/verify-duro-app/features/README.md`
-- [ ] Phase 4 (this plan closes after Phase 3; this is a dated check) —
+- [ ] Phase 4 (this plan closes after Phase 3; this is a dated check,
+  filed as `docs/programmes/follow-ups/t01-verify-skill-pilot-measure.md`,
+  due 2026-12-19) —
   measure after 5 F2 runs per pilot or on 2026-12-19, whichever comes
   first, recording the run count; decide widen, `--check` or drop: `docs/plans/2026-11-19-create-verify-skill.md` (its
   Outcome)
@@ -229,6 +231,27 @@ wall time runs from the first F2 command to the first verdict.
 - None of the 5 started sre-agent itself; the pilot's F2 starts it, so
   Phase 4 compares against F2 work of a different shape.
 
+## Baseline (duro-app, gathered before the Phase 3 pilot ran)
+
+From the session transcripts of duro-app's plans. It has 4 plans, not 5,
+and only the last 2 still have transcripts (the oldest retained one is
+from about 2026-10-15).
+
+| Plan | F2 check | Repairs | Blockers | Wall min |
+|---|---|---|---|---|
+| remaining-open-items-duro-form (09-28) | no transcript | – | – | – |
+| raw-values-lint-and-chrome-theme (10-09) | no transcript | – | – | – |
+| design-is-an-optional-part (10-31) | ESLint rule counts, typecheck, vitest | 0 | none | 4.6 |
+| ci-fetches-release-assets-api (11-08) | the changed CI step run locally | 0 | none | 0.3 |
+
+- Totals: 0 repairs over 2 measured plans; median 2.5 min.
+- Neither started the dev server or drove a browser: for a UI change,
+  the "before" is "never verified locally", not "verified slowly". Phase
+  4 decides duro-app on wall time and blockers alone (a 0-repair
+  baseline), and compares F2 work of a different shape.
+- The dev server itself was broken for a direct `node …/bin.js` start
+  (see the Phase 3 feedback), which no plan had found.
+
 ## Decision log
 
 - 2026-11-19: the person approved the plan as written; duro-app stays the
@@ -273,6 +296,53 @@ wall time runs from the first F2 command to the first verdict.
 - Next, Phase 3 (duro-app pilot): run `create-verify-skill` in a duro-app
   worktree; it is a UI, so Drive hands off to `browser-check`. The Decide
   (duro-app or social-planner) defaulted to duro-app on 2026-11-19.
+- Phase 3 done 2026-11-19: duro-app PR #168 merged. `verify-duro-app`
+  ships `scripts/verify.py` (launch, doctor, drive, brief, cleanup) and
+  four feature files; `brief` prints a `browser-check` brief with the
+  live URL. Every step-4 check of the generator passed (three separate
+  calls, second Launch refused, HUP / INT / TERM mid-launch, a SIGKILLed
+  Launch cleaned up, a same-named decoy survived Cleanup). Pilot bar: a
+  fresh agent with only the skill launched `browser-check` itself (no
+  split needed). Run 1: 0 repairs but F2 **failed**, two feature files
+  stated behaviour the app lacks. Run 2: F2 **passed**, 0 repairs, about
+  3 min. Counted against the baseline as the plan defines a repair (a
+  failed F2 check fixed and re-run): **1 repair over the two runs**, the
+  feature-file fix between them. The pointer plan in duro-app holds every
+  row.
+- Generator feedback from Phase 3, for t02 and the generator text:
+  (1) Launch with the repository's own launcher: a direct
+  `node …/bin.js` lost the pnpm shim's `NODE_PATH`, and every page was a
+  500; when a launch fails, diff it against a plain `pnpm dev` before
+  suspecting the app. (2) Isolation must cover files a framework loads
+  over the environment: react-router dev copies `.env*` over
+  `process.env`, and the live checkout's `.env` would have swapped the
+  seeded store for a file one. (3) An untyped config needs its own guard:
+  a scan of the env names the code reads, refusing an unclassified one,
+  stands in for sre-agent's typed `Settings` guard. (4) Feature files
+  written from reading the code were wrong in 3 of 4 (seed names, an
+  admin-only request button, a detail panel no route opens, tab names):
+  write them after driving the app, and run a fresh-context F2 before
+  calling the skill done. (5) The dev sign-in is one fixed admin: say
+  which roles a recipe can sign in as, and which journeys that leaves
+  undrivable. (6) Process details the text should name: keep the
+  failure log outside the state directory the teardown removes; hold
+  HUP as well as INT and TERM; print the pidfile path before starting,
+  so a SIGKILLed Launch can be cleaned up; write the pidfile before
+  slow calls; `pgrep -lg <pgid>` lists a group (seen: `node` and
+  `esbuild` for a live Launch group; `ps -g` does not select by group,
+  per the unix review, not reproduced here); `killpg` raised `EPERM`
+  (`PermissionError`) once on this Mac against a group whose leader had
+  just exited, in a probe outside the helper. Both pilots hold the
+  signals across `Popen` and the `pgid` write, which closes the window
+  noted under Implementation review below; the generator's own shell
+  recipe still has it (t02). (7) Two Launches timed out
+  once each right after a SIGKILL test, not reproduced; the timeout now
+  names its last failed readiness check.
+- The plan closes here (`status: done`). Phase 4 is the dated ticket
+  `docs/programmes/follow-ups/t01-verify-skill-pilot-measure.md` (due
+  2026-12-19); folding the pilots' feedback into the generator is t02;
+  deleting the drifted `duro-mockup` copies (the survey's follow-up) is
+  t03.
 
 ## Implementation review
 
@@ -292,8 +362,16 @@ wall time runs from the first F2 command to the first verdict.
 - deliberate: an empty-group branch prints the step 4 `ok:` line rather
   than a new message (the outcome is the same).
 - deliberate: a SIGINT between `Popen` and the `pgid` write leaves the group
-  unfound (one syscall wide); the pilot run will show if it matters.
+  unfound (one syscall wide). Not shown by the pilots (no signal test can
+  land in one syscall); both pilot helpers close it by holding the
+  signals across `Popen` and the write, and t02 carries it into the
+  generator's text.
 - No further pass: the fixes after the first delta were text-only.
+
+## Outcome
+
+Pending t01 (`docs/programmes/follow-ups/t01-verify-skill-pilot-measure.md`,
+due 2026-12-19): widen, build `--check`, or drop.
 
 <!-- panel: repos=greenharness-skills,grh,sre-agent,duro-app adds=contract reviewers=backend,lang:python,architect,po,tui,unix body-sha=28c917710b1b -->
 
