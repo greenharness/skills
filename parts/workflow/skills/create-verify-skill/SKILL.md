@@ -188,9 +188,12 @@ Its own step, run from a fresh shell with only the pidfile path in hand:
    - Start time `null` (Launch was stopped before `ps` returned), which
      cannot show reuse: the group is ours only when the leader pid is
      alive, `ps -o pgid= -p <pid>` is the recorded group id and
-     `ps -o command= -p <pid>` matches the recorded command. Otherwise
-     signal nothing, remove the same three, print
-     `ok: <pgid> unverified, nothing signalled` and exit 0.
+     `ps -ww -o command= -p <pid>` (full width) equals the recorded argv
+     joined with `shlex.join`. Otherwise, if `pgrep -g <pgid>` lists
+     members, they may be our server behind an exited wrapper: signal
+     nothing, keep the pidfile, its log and the state directory, print
+     `fail: <pgid> unverified, members <pids> — check pgrep -lg <pgid>`
+     and exit 1. An empty group goes to the empty-group branch below.
    - Else if `pgrep -g <pgid>` lists members, the group is ours: a group
      id is not reused while any member lives, even after a wrapper leader
      exited.
