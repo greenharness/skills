@@ -102,10 +102,18 @@ Standing rule (see `~/.claude/CLAUDE.md` § Git hygiene): in repos where a `v*` 
    what comes next into the plan or programme map. Then, only when nothing
    of this session is in flight (uncommitted or unpushed work, an open PR,
    a background task or run, an unanswered question), end with that line,
-   last, with a one-line prompt and no backtick in it. In a programme the
-   prompt names one ticket: run
-   `relais programme next --from <repo>:<programme> --claim` and write
-   `resume <repo> <programme> <ticket>: <gist>`. On exit 22 it printed a
+   last. The backticks around the prompt are part of the line: the
+   clear-relay plugin arms on nothing else, and a bare prompt fails
+   silently. The prompt itself is one line with no backtick inside it.
+   In a programme the prompt names one ticket: run
+   `relais programme next --from <repo>:<programme> --claim` and end with
+   the whole line, wrapper included:
+
+   ```
+   safe to /clear; next: `resume <repo> <programme> <ticket>: <gist>`
+   ```
+
+   On exit 22 it printed a
    `parked: …` line: end with `safe to /clear; ` followed by that line
    instead. On any other exit, report relais's stderr line and print no clear
    line. Without relais, name the map's own next ticket or park; a next step
