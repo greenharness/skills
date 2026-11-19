@@ -27,6 +27,9 @@ let browser = null;
 let launching = null;
 let npmChild = null;
 let installDirectory = null;
+let report = null;
+let stepsRunning = false;
+const STOP_WAIT_SECONDS = 5;
 
 function parseArguments(argv) {
   let values;
@@ -106,14 +109,24 @@ async function installPlaywright(target) {
     try {
       fs.renameSync(temporary, target);
     } catch (firstError) {
-      // Another run may have installed the target meanwhile: keep it when it is the right version.
-      // The version is read again right before the stale target is removed.
+      // The target exists. Another run may have installed the right version meanwhile: keep it.
+      // Otherwise the stale target is renamed aside in one atomic step (never read, then deleted),
+      // the new install is renamed into place, and the aside copy is removed afterwards.
       if (installedVersion(target) === PLAYWRIGHT_VERSION) return;
-      fs.rmSync(target, { recursive: true, force: true });
+      const aside = `${target}.stale-${process.pid}`;
+      try {
+        fs.renameSync(target, aside);
+      } catch (asideError) {
+        if (installedVersion(target) === PLAYWRIGHT_VERSION) return;
+        throw new RunnerError(`could not move the stale install aside: ${firstError.message}; ${asideError.message}`, { cause: asideError });
+      }
       try {
         fs.renameSync(temporary, target);
       } catch (secondError) {
+        if (installedVersion(target) === PLAYWRIGHT_VERSION) return;
         throw new RunnerError(`could not move the install into place: ${firstError.message}; ${secondError.message}`, { cause: secondError });
+      } finally {
+        fs.rmSync(aside, { recursive: true, force: true });
       }
     }
   } finally {
@@ -167,6 +180,10 @@ function shotsDirectory(option) {
   return path.join(os.homedir(), ".claude", "greenbelay", "attestations", sha);
 }
 
+function describe(error) {
+  return String(error && error.stack ? error.stack : error);
+}
+
 function withDeadline(pending, seconds) {
   let timer;
   const deadline = new Promise((_, reject) => {
@@ -180,7 +197,7 @@ async function check(options, notes) {
   const loaded = await loadPlaywright(notes);
   launching = launchBrowser(loaded, notes);
   browser = await launching;
-  const report = {
+  report = {
     url: options.url,
     viewport: options.viewport,
     title: null,
@@ -229,17 +246,13 @@ async function check(options, notes) {
       report.result = (await steps.default(page, { shot })) ?? null;
     }
   };
-  const describe = (error) => String(error && error.stack ? error.stack : error);
-  const onUnhandledRejection = (reason) => {
-    report.stepsError ??= describe(reason);
-  };
-  process.on("unhandledRejection", onUnhandledRejection);
+  stepsRunning = true;
   try {
     await withDeadline(run(), options.timeoutSeconds);
   } catch (error) {
     report.stepsError = describe(error);
   } finally {
-    process.off("unhandledRejection", onUnhandledRejection);
+    stepsRunning = false;
   }
   report.url = page.url();
   try {
@@ -256,16 +269,55 @@ async function check(options, notes) {
 
 async function stopOnSignal(name, code) {
   process.stderr.write(`${name}: closing the browser\n`);
-  if (npmChild) npmChild.kill("SIGTERM");
-  if (installDirectory) fs.rmSync(installDirectory, { recursive: true, force: true });
+  const child = npmChild;
+  if (child) {
+    // the temp install is removed only after npm has stopped writing into it, or after a bounded wait
+    const closed = new Promise((resolve) => child.once("close", resolve));
+    const timedOut = new Promise((resolve) => setTimeout(resolve, STOP_WAIT_SECONDS * 1000).unref());
+    child.kill("SIGTERM");
+    await Promise.race([closed, timedOut]);
+  }
+  if (installDirectory) {
+    try {
+      fs.rmSync(installDirectory, { recursive: true, force: true });
+    } catch (error) {
+      process.stderr.write(`could not remove ${installDirectory}: ${error.message}\n`);
+    }
+  }
   try {
     // a launch still pending is waited for, so its browser is closed too
-    const pendingBrowser = browser ?? (launching ? await launching.catch(() => null) : null);
+    const pendingBrowser = browser ?? (launching
+      ? await launching.catch((error) => {
+        process.stderr.write(`launch failed during stop: ${error.message}\n`);
+        return null;
+      })
+      : null);
     if (pendingBrowser) await pendingBrowser.close();
   } catch (error) {
     process.stderr.write(`close failed: ${error.message}\n`);
   }
   process.exit(code);
+}
+
+async function closeBrowser() {
+  if (!browser) return;
+  try {
+    await browser.close();
+  } catch (error) {
+    process.stderr.write(`close failed: ${error.message}\n`);
+  }
+}
+
+// A fault outside any promise chain: it lands in the report when there is one, else it ends the run with exit 2.
+function onFault(error) {
+  if (report && stepsRunning) {
+    report.stepsError ??= describe(error);
+  } else if (report) {
+    report.notes.push(`unhandled error after the steps: ${describe(error)}`);
+  } else {
+    process.stderr.write(`browser-check-runner: ${describe(error)}\n`);
+    void closeBrowser().finally(() => process.exit(2));
+  }
 }
 
 async function main() {
@@ -274,18 +326,13 @@ async function main() {
   console.log = console.info = console.debug = console.error;
   process.on("SIGINT", () => void stopOnSignal("SIGINT", 130));
   process.on("SIGTERM", () => void stopOnSignal("SIGTERM", 143));
+  process.on("unhandledRejection", onFault);
+  process.on("uncaughtException", onFault);
   const notes = [];
-  let report;
   try {
-    report = await check(options, notes);
+    await check(options, notes);
   } finally {
-    if (browser) {
-      try {
-        await browser.close();
-      } catch (error) {
-        process.stderr.write(`close failed: ${error.message}\n`);
-      }
-    }
+    await closeBrowser();
   }
   let serialised;
   try {

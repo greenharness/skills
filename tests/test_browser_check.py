@@ -147,7 +147,7 @@ class Runner(unittest.TestCase):
                     runner.communicate()
             self.assertEqual(runner.returncode, 143, stderr)
             self.assertEqual(stdout, "")
-            self.assertEqual([p.name for p in parent.iterdir()], [])
+            self.assertEqual([p.name for p in parent.iterdir()] if parent.exists() else [], [])
 
 
 class offline_environment:
@@ -243,6 +243,31 @@ class RunnerPage(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr)
         self.assertEqual(json.loads(done.stdout)["result"], {"ok": 1})
         self.assertIn("noise on stdout", done.stderr)
+
+    def test_bigint_result_gives_steps_error_and_exit_0(self):
+        self.require_browser()
+        with tempfile.TemporaryDirectory() as directory:
+            steps = Path(directory) / "steps.mjs"
+            steps.write_text("export default async () => ({ big: 1n });\n")
+            done = self.run_runner("--steps", str(steps))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        report = json.loads(done.stdout)
+        self.assertIsNone(report["result"])
+        self.assertIn("not JSON-serialisable", report["stepsError"])
+
+    def test_rejection_after_the_steps_return_still_gives_one_report(self):
+        self.require_browser()
+        with tempfile.TemporaryDirectory() as directory:
+            steps = Path(directory) / "steps.mjs"
+            steps.write_text(
+                "export default async () => {\n"
+                "  setTimeout(() => Promise.reject(new Error('late rejection')), 300);\n"
+                "  return { ok: 1 };\n"
+                "};\n"
+            )
+            done = self.run_runner("--steps", str(steps))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(json.loads(done.stdout)["result"], {"ok": 1})
 
 
 if __name__ == "__main__":
