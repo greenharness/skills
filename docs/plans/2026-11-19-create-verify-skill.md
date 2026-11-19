@@ -377,6 +377,14 @@ from about 2026-10-15).
   signals across `Popen` and the write, and t02 carries it into the
   generator's text.
 - No further pass: the fixes after the first delta were text-only.
+- t02 (follow-ups): implementation-review approve after round 1 and 6
+  narrow deltas (log on every exit, own teardown, survivor record); about
+  28k tokens and 25 s a pass.
+- t02 backend approve after 7 passes (null start time verifies the leader,
+  unverified group keeps its record); unix and lang:python approve on
+  `674d3e4f` (mask inside the guarded block, flush, `" ".join(argv)`).
+- t02 deliberate: the process rules are text, pinned by substring tests;
+  none was run since this change (the pilot helpers implement them).
 
 ## Outcome
 
