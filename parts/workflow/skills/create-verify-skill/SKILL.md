@@ -52,25 +52,37 @@ columns. Five sections, named exactly as below.
 - The command from an empty data directory, and the readiness signal from
   step 1. Fail non-zero when it is not met within a deadline of 60 s or
   more: the first execution of a fresh binary can be slow.
-- Non-interactive: `CI=1 NO_COLOR=1`, an explicit free port (bind port 0 and
-  read it back), no prompt that can stall. Output goes to a log file in
-  the state directory, never to the session. On a timeout print the last 20
-  log lines and the log path.
-- The state directory comes from `mktemp -d`. Its path is written into the
-  pidfile, so a later call can find it.
+- Non-interactive: `CI=1 NO_COLOR=1`, a free port (bind port 0, read it
+  back, and retry Launch once on a new port if the bind then fails), no
+  prompt that can stall. Output goes to a log file, never to the session.
+  On a timeout print the last 20 log lines to stderr, and the log path.
+- Say how a login is provided (a dev-login switch, a seeded throwaway
+  account). Never a real password and never a session token. The preview
+  guide's `Sign in:` line cites this.
+- The state directory comes from `mktemp -d` and holds the log. The pidfile
+  lives outside the repository at a path keyed by the worktree, for example
+  `${TMPDIR:-/tmp}/verify-<app>-<hash of the worktree path>.json`. Launch
+  prints that path as its only stdout line and Cleanup takes it as its
+  argument. If a pidfile is already there and its group is still alive,
+  Launch stops with `fail:` and does not start a second server.
 - Start the server as the leader of its own process group, so Cleanup can
   signal exactly the tree you started. macOS has no `setsid(1)`; use
-  Python's `subprocess.Popen(..., start_new_session=True)` with stdout and
-  stderr opened on the log file, so the tool call does not wait on a pipe.
-  Write the pidfile as JSON: the process-group id, the leader pid, the
-  command and the state directory.
-- Check readiness against your own tree: the listener on the port must
-  belong to your process group (`lsof -t -iTCP:<port> -sTCP:LISTEN`). A
-  foreign server on the same port must never count as ready.
-- A `trap` on EXIT INT TERM tears down a failed or interrupted launch. It
-  covers launch-until-ready only and is cleared (`trap - EXIT INT TERM`)
-  once ready: every agent tool call is a fresh shell, and an EXIT trap left
-  armed would kill the app before Drive runs.
+  Python's `subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log,
+  stderr=subprocess.STDOUT, start_new_session=True)`, with `log` opened in
+  append mode and closed in the launcher once `Popen` returns, so the tool
+  call does not wait on a pipe. The group id is `proc.pid`.
+- Write the pidfile as JSON (group id, leader pid, the leader's start time
+  from `ps -o lstart=`, the command and the state directory) to a temporary
+  name, then rename it into place, so no reader sees half a file.
+- Check readiness against your own tree: list the listeners with
+  `lsof -nP -t -iTCP:<port> -sTCP:LISTEN`, map each pid to its group with
+  `ps -o pgid= -p <pid>`, and require the recorded group id. A foreign
+  server on the same port must never count as ready.
+- A `trap` on EXIT INT TERM tears down a failed or interrupted launch. Arm
+  it before `Popen`, exit 130 on INT, 143 on TERM and 1 on a missed
+  deadline. It covers launch-until-ready only and is cleared
+  (`trap - EXIT INT TERM`) once ready: every agent tool call is a fresh
+  shell, and an EXIT trap left armed would kill the app before Drive runs.
 
 ### Doctor
 
@@ -89,9 +101,6 @@ with the route, login and seed; add a fallback line for a checkout that does
 not have that agent (drive it with the project's own e2e runner). Every step
 that needs another Green Harness part carries a fallback line.
 
-Say how a login is provided (a dev-login switch, a seeded throwaway
-account). Never a real password and never a session token.
-
 ### Evidence
 
 Proof that the feature works, taken through the real user path: record the
@@ -102,18 +111,23 @@ skill. A skipped precondition is a failure, not a pass.
 
 ### Cleanup
 
-Its own step, run from a fresh shell with only the pidfile in hand:
+Its own step, run from a fresh shell with only the pidfile path in hand:
 
 1. Read the pidfile. If it is missing, print `fail: no pidfile at <path> —
-   nothing to stop` and exit non-zero.
-2. Check the process-group leader still matches the recorded pid and
-   command (`ps -o pid=,command= -p <leader>`). If it does not, signal
-   nothing: the group id may have been reused. Only remove the state
-   directory.
-3. `kill -TERM -<pgid>`, wait a few seconds, then `kill -KILL -<pgid>`.
+   nothing to stop` and exit 1.
+2. Decide whether the group is ours. If `pgrep -g <pgid>` lists members, it
+   is: a group id is not reused while any member lives, even after a wrapper
+   leader exited. If the group is empty, signal nothing and only remove the
+   state directory. If the leader pid is alive but its start time differs
+   from the recorded one, it belongs to someone else: signal nothing.
+3. `kill -TERM -<pgid>`; poll `pgrep -g <pgid>` for up to 5 s; then
+   `kill -KILL -<pgid>`. Treat "no such process" as already gone.
    Never `pkill` or `killall` by name: another session's server may share
    the name.
-4. Remove the state directory. Print `ok: stopped <pgid>, removed <dir>`.
+4. If members survive the KILL, print `fail: <pgid> still has <pids>`,
+   keep the state directory and exit 1. Otherwise remove the state
+   directory and the pidfile, print `ok: stopped <pgid>, removed <dir>` and
+   exit 0.
 
 Evidence must survive cleanup: copy it out first.
 
@@ -134,8 +148,9 @@ Launch, Drive and Cleanup as three separate tool calls, with the app still
 up between them. Then confirm: Doctor exits 0 while the app is up; the
 evidence file exists and `git status` shows nothing new; after Cleanup the
 process group is empty (`pgrep -g <pgid>`), a decoy process with the same
-name as the server is still alive, and the state directory is gone. Run
-Cleanup after a failed attempt too.
+name as the server is still alive, and the state directory is gone.
+Interrupt a second Launch before it is ready: no listener and no state
+directory may remain. Run Cleanup after a failed attempt too.
 
 A generated skill that was never executed is a draft: say so. If you ran it
 in a stand-in environment, list every setup step that stayed unverified on

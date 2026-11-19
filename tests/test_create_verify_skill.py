@@ -9,14 +9,16 @@ GENERATOR = SKILLS / "create-verify-skill/SKILL.md"
 SECTIONS = ("Launch", "Doctor", "Drive", "Evidence", "Cleanup")
 EXECUTE_ONCE = "Run the generated skill once, end to end, before you call it done."
 F2_PREFERENCE = "When the repository has a `verify-*` skill, follow it for this check;"
-SIGN_IN = "**Sign in:** <how, from the repository's `verify-<app>` skill Launch"
+SIGN_IN = "**Sign in:** <how, from the repository's\n   `verify-<app>` skill Launch"
 
 
 def frontmatter(text):
     """Stdlib only (CI has no PyYAML): split each line on its first `: `."""
-    head = text.split("---")[1]
+    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    if m is None:
+        raise AssertionError("no frontmatter between two --- lines")
     fields = {}
-    for line in head.strip().splitlines():
+    for line in m.group(1).splitlines():
         key, _, value = line.partition(": ")
         fields[key] = value
     return fields
@@ -24,7 +26,7 @@ def frontmatter(text):
 
 class Generator(unittest.TestCase):
     def setUp(self):
-        self.text = GENERATOR.read_text()
+        self.text = GENERATOR.read_text(encoding="utf-8")
 
     def test_frontmatter(self):
         fields = frontmatter(self.text)
@@ -33,11 +35,8 @@ class Generator(unittest.TestCase):
 
     def test_five_sections_are_headings_not_prose(self):
         for name in SECTIONS:
-            self.assertRegex(self.text, re.compile(rf"^#{{2,3}} {name}\b", re.M), name)
-
-    def test_headings_fail_when_a_section_is_removed(self):
-        broken = re.sub(r"^### Doctor\n", "", self.text, flags=re.M)
-        self.assertNotRegex(broken, re.compile(r"^#{2,3} Doctor\b", re.M))
+            with self.subTest(name):
+                self.assertRegex(self.text, re.compile(rf"^#{{2,3}} {name}\b", re.M))
 
     def test_execute_once_rule_is_one_exact_sentence(self):
         self.assertEqual(self.text.count(EXECUTE_ONCE), 1)
@@ -49,33 +48,38 @@ class Generator(unittest.TestCase):
             "Never `pkill` or `killall` by name",
             "ok: <what>",
             "generated-from:",
+            "stdin=subprocess.DEVNULL",
+            "ps -o pgid= -p <pid>",
+            "pgrep -g <pgid>",
         ):
-            self.assertIn(needle, self.text, needle)
+            with self.subTest(needle):
+                self.assertIn(needle, self.text)
 
     def test_no_machine_specific_text(self):
         for needle in ("/Users/", "homelab", "daddyshome"):
-            self.assertNotIn(needle, self.text, needle)
+            with self.subTest(needle):
+                self.assertNotIn(needle, self.text)
 
 
 class WiringIntoWorktreeTask(unittest.TestCase):
     def test_f2_prefers_the_verify_skill(self):
-        text = (SKILLS / "worktree-task/SKILL.md").read_text()
+        text = (SKILLS / "worktree-task/SKILL.md").read_text(encoding="utf-8")
         self.assertEqual(text.count(F2_PREFERENCE), 1)
         self.assertIn("create-verify-skill", text)
 
     def test_preview_guide_has_a_sign_in_line(self):
-        text = (SKILLS / "worktree-task/preview-guide-template.md").read_text()
-        self.assertIn(SIGN_IN, text)
+        text = (SKILLS / "worktree-task/preview-guide-template.md").read_text(encoding="utf-8")
+        self.assertEqual(text.count(SIGN_IN), 1)
 
     def test_launcher_pins_still_hold(self):
-        text = (SKILLS / "worktree-task/SKILL.md").read_text()
+        text = (SKILLS / "worktree-task/SKILL.md").read_text(encoding="utf-8")
         self.assertIn('model: "opus"', text)
         self.assertIn("agent-model-fallback", text)
 
 
 class Listed(unittest.TestCase):
     def test_readme_lists_the_skill(self):
-        self.assertIn("create-verify-skill", (ROOT / "README.md").read_text())
+        self.assertIn("create-verify-skill", (ROOT / "README.md").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

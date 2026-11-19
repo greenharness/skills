@@ -14,11 +14,10 @@ today" when that is the point of the change.>
 ## 👉 Try it (about <n> minutes)
 
 1. **Open <http://localhost:PORT/path>** — you land on <what is on screen,
-   named the way the person sees it>. If the page needs a sign-in, say which
-   and how it was provided (<a login, or "none: the preview signs you in">);
-   never write "signed in" for a state only the agent's browser had.
-   **Sign in:** <how, from the repository's `verify-<app>` skill Launch when
-   it has one; a throwaway account or "none"; never a real password>.
+   named the way the person sees it>. **Sign in:** <how, from the repository's
+   `verify-<app>` skill Launch when it has one; a throwaway account, or
+   "none: the preview signs you in"; never a real password>. Never write
+   "signed in" for a state only the agent's browser had.
 2. **Click "<visible label>"** (<where: top right, next to "…">) — <what
    appears: "a panel titled … slides in from the right">.
 3. **Look at <thing>** — <what it should look like; what "broken" would look
