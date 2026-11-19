@@ -343,6 +343,16 @@ from about 2026-10-15).
   2026-12-19); folding the pilots' feedback into the generator is t02;
   deleting the drifted `duro-mockup` copies (the survey's follow-up) is
   t03.
+- t02 (2026-11-19) folded the process and signal items and the shared
+  lessons into the generator text; the one-syscall window under
+  Implementation review is closed there too (the mask across `Popen`).
+  Kept back until a third repository shows the pattern (rule of three):
+  (a) launch with the repository's own launcher (Phase 3 (1)): one pilot,
+  one package manager, and the fix is a debugging hint rather than a
+  rule; (b) a scan of the env names an untyped config reads (Phase 3
+  (3)): sre-agent's typed `Settings` guard was the other shape, and two
+  shapes do not yet name a general recipe; (c) which roles a recipe can
+  sign in as (Phase 3 (5)): one app with one fixed dev admin.
 
 ## Implementation review
 
@@ -367,6 +377,14 @@ from about 2026-10-15).
   signals across `Popen` and the write, and t02 carries it into the
   generator's text.
 - No further pass: the fixes after the first delta were text-only.
+- t02 (follow-ups): implementation-review approve after round 1 and 6
+  narrow deltas (log on every exit, own teardown, survivor record); about
+  28k tokens and 25 s a pass.
+- t02 backend approve after 7 passes (null start time verifies the leader,
+  unverified group keeps its record); unix and lang:python approve on
+  `674d3e4f` (mask inside the guarded block, flush, `" ".join(argv)`).
+- t02 deliberate: the process rules are text, pinned by substring tests;
+  none was run since this change (the pilot helpers implement them).
 
 ## Outcome
 

@@ -1,7 +1,7 @@
 +++
 type = "task"
 mode = "afk"
-status = "open"
+status = "closed"
 blocked_by = []
 repos = ["greenharness-skills"]
 +++
@@ -46,3 +46,21 @@ One greenharness-skills PR that adds, now:
 
 The test still passes, and the plan gets a line for each lesson kept
 back (launcher choice, untyped-config scan, role coverage) and why.
+
+## Resolution
+
+2026-11-19: folded into `create-verify-skill/SKILL.md` in one PR. In
+now: every process and signal item (the mask across `Popen` and the
+`pgid` and pidfile writes, unblocked in the child with `preexec_fn`;
+HUP held; the second signal; the pidfile path printed before anything
+starts; the pidfile written before slow calls with a `null` start time
+until `ps` returns; the log outside the state directory; `pgrep -lg`;
+`EPERM` as gone only for an empty group; the timeout naming its last
+failed readiness check), and the shared lessons (isolation of
+credentials, cluster config and framework-loaded files; Doctor checks
+what was wired; a stdlib `scripts/verify.py` held to the repository's
+lint rules; the skill is committable; feature files after driving; a
+fresh-agent run before done). The test pins each; the one moved pin is
+`trap - EXIT HUP INT TERM`, since HUP is now held. Kept back for a third
+repository: launcher choice, the untyped-config scan, role coverage
+(lines in the plan's Decision log).

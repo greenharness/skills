@@ -44,13 +44,43 @@ class Generator(unittest.TestCase):
     def test_per_call_shell_rules_are_stated(self):
         for needle in (
             "start_new_session=True",
-            "trap - EXIT INT TERM",
+            "trap - EXIT HUP INT TERM",
             "Never `pkill` or `killall` by name",
             "ok: <what>",
             "generated-from:",
             "stdin=subprocess.DEVNULL",
             "ps -o pgid= -p <pid>",
             "pgrep -g <pgid>",
+        ):
+            with self.subTest(needle):
+                self.assertIn(needle, self.text)
+
+    def test_pilot_process_rules_are_stated(self):
+        """The two pilots' process and signal lessons (follow-ups t02)."""
+        for needle in (
+            "signal.pthread_sigmask(signal.SIG_BLOCK, held)",
+            "never `SIG_IGN`",
+            "preexec_fn=",
+            "`Interrupted(signum)`",
+            "`fail: <pgid> unverified, members <pids>",
+            "ps -ww -o command=",
+            '`" ".join(argv)`',
+            "keep the pidfile, its log and the state directory",
+            "skips Cleanup steps 1 and 2",
+            "does not take step 4's exit codes",
+            "When a member survives it keeps the state directory",
+            "with no pidfile yet, it writes one with the",
+            "the group id, the leader pid, the argv,",
+            "remove a lone `<pidfile>.log`",
+            "print(path, flush=True)",
+            "`<pidfile>.log`",
+            "`pgrep -lg <pgid>`",
+            "`PermissionError`",
+            "`scripts/verify.py`",
+            "git check-ignore -v",
+            "Doctor checks what the app wired",
+            "after driving the app",
+            "credentials and cluster config",
         ):
             with self.subTest(needle):
                 self.assertIn(needle, self.text)
