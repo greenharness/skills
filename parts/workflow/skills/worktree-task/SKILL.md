@@ -171,8 +171,12 @@ below names one of them.
 - **F1. Rebase.** `git fetch origin -q && git rebase origin/main`. Resolve
   conflicts in place, never in the live checkout.
 - **F2. Verification loop**. Check
-  the changed behaviour observably, against the plan's Verification section:
-  - UI: launch the `browser-check` agent with `model: "haiku"` (failure: `agent-model-fallback`) on the local dev server with
+  the changed behaviour observably, against the plan's Verification section.
+  When the repository has a `verify-*` skill, follow it for this check; when
+  it has none and the check needs a running app, `create-verify-skill`
+  writes one.
+  - UI: launch the `browser-check` agent with `model: "haiku"` (failure: `agent-model-fallback`) on the local dev server (its start, login and seed
+    from the `verify-*` skill's Launch and Drive, when there is one) with
     the route, viewport, theme, steps, questions and the short sha; it opens
     the changed route, exercises the interaction (click, type, mobile width),
     reads console and network, and files screenshots under
@@ -185,7 +189,7 @@ below names one of them.
     `deliberate: <reason>`. When accessibility seems to need a design
     change, look first for a fix that keeps the design (an `sr-only`
     copy, aria, a live region outside the control).
-  - Non-UI: a piloted run (`run` skill) — the CLI on a real input, the
+  - Non-UI: a piloted run — the CLI on a real input, the
     service plus requests, an operator on kind, `kustomize build` /
     `flux diff`. A focused test can be the check for a library, test-only
     or docs change; a green general suite alone never is.

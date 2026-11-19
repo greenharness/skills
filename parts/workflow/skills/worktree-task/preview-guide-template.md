@@ -17,6 +17,8 @@ today" when that is the point of the change.>
    named the way the person sees it>. If the page needs a sign-in, say which
    and how it was provided (<a login, or "none: the preview signs you in">);
    never write "signed in" for a state only the agent's browser had.
+   **Sign in:** <how, from the repository's `verify-<app>` skill Launch when
+   it has one; a throwaway account or "none"; never a real password>.
 2. **Click "<visible label>"** (<where: top right, next to "…">) — <what
    appears: "a panel titled … slides in from the right">.
 3. **Look at <thing>** — <what it should look like; what "broken" would look
