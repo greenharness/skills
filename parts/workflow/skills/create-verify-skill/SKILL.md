@@ -158,7 +158,8 @@ process group is empty (`pgrep -g <pgid>`), a decoy process with the same
 name as the server is still alive, and the state directory is gone.
 A second Launch while the first is up exits non-zero with `fail:` and
 starts nothing. Interrupt a Launch before it is ready: no listener, no
-state directory and no pidfile may remain. Run Cleanup after a failed attempt too.
+state directory and no pidfile may remain. Run Cleanup after a failed
+attempt too.
 
 A generated skill that was never executed is a draft: say so. If you ran it
 in a stand-in environment, list every setup step that stayed unverified on
