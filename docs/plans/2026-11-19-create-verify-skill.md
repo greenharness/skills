@@ -188,5 +188,39 @@ pilots, a measurement before widening.
   neither repairs nor wall time improved. A baseline of 0 repairs decides
   on wall time and blockers alone.
 
+## Observed (PR 1 of Phase 1: skill, test, README, F2 and preview wording)
+
+- Tests: 118 pass; `scripts/check.sh` clean. Removing the execute-once
+  sentence, or the F2 `verify-*` sentence, fails
+  `tests/test_create_verify_skill.py` (checked, then restored).
+- Scratch run of the recipe on macOS, a stdlib HTTP server, as Launch,
+  Doctor+Drive and Cleanup in separate tool calls: the server stayed up
+  between calls (Doctor `ok: server answers`), the listener was in our own
+  group, evidence went outside the worktree (`git status` showed only the
+  edits), a same-named decoy in its own group survived Cleanup, the group
+  was empty and the state directory gone afterwards, a stale pidfile
+  signalled nothing, a missing pidfile exited 1.
+- After review, a wrapper leader that exits while a child lives was
+  checked: group TERM emptied the group.
+- Not observed here: a SIGINT mid-launch, a second Launch refused, the
+  `O_EXCL` lock; the first pilot (sre-agent) runs them.
+
+## Decision log
+
+- 2026-11-19: the person approved the plan as written; duro-app stays the
+  second pilot (the open Decide defaulted to it).
+- Phase 1 stays open: the release and the grh `catalog.toml` pin follow this
+  PR, before the pilots.
+
+## Implementation review
+
+- implementation-review: round 1 approve-with-changes (5 fixed), delta
+  approve-with-changes (2 new, fixed in `e53fac1`). 39k and 29k tokens.
+- backend: round 1 approve-with-changes (1 high, 3 fixed), delta
+  approve-with-changes (3 new, fixed). lang:python: approve-with-changes,
+  then approve. unix: approve-with-changes twice (8 and 3 findings, fixed).
+- No third pass; the fixes since the delta are text-only
+  (`e53fac1`, `e9acf23`).
+
 <!-- panel: repos=greenharness-skills,grh,sre-agent,duro-app adds=contract reviewers=backend,lang:python,architect,po,tui,unix body-sha=28c917710b1b -->
 
