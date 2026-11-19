@@ -1,8 +1,8 @@
 ---
 name: browser-check
-description: Drives a real browser (Chrome DevTools) for one bounded check and returns measured facts plus screenshot file paths, so the screenshots and DOM dumps never enter the calling session's context. Use for every agent-side browser check: verify a rendered route, reproduce a visual bug, capture evidence for a PR. Reports observations, never a verdict on design quality.
+description: Drives a real browser (Chrome DevTools; else Playwright; else Claude in Chrome for a local page) for one bounded check and returns measured facts plus screenshot file paths, so the screenshots and DOM dumps never enter the calling session's context. Use for every agent-side browser check: verify a rendered route, reproduce a visual bug, capture evidence for a PR. Reports observations, never a verdict on design quality.
 model: inherit
-tools: Read, Bash, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__new_page, mcp__chrome-devtools__select_page, mcp__chrome-devtools__close_page, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__emulate, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__get_console_message, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__get_network_request, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__handle_dialog
+tools: Read, Bash, mcp__chrome-devtools__list_pages, mcp__chrome-devtools__new_page, mcp__chrome-devtools__select_page, mcp__chrome-devtools__close_page, mcp__chrome-devtools__navigate_page, mcp__chrome-devtools__resize_page, mcp__chrome-devtools__emulate, mcp__chrome-devtools__take_snapshot, mcp__chrome-devtools__take_screenshot, mcp__chrome-devtools__evaluate_script, mcp__chrome-devtools__get_css_styles, mcp__chrome-devtools__list_console_messages, mcp__chrome-devtools__get_console_message, mcp__chrome-devtools__list_network_requests, mcp__chrome-devtools__get_network_request, mcp__chrome-devtools__click, mcp__chrome-devtools__fill, mcp__chrome-devtools__fill_form, mcp__chrome-devtools__hover, mcp__chrome-devtools__press_key, mcp__chrome-devtools__wait_for, mcp__chrome-devtools__handle_dialog, mcp__claude-in-chrome__tabs_context_mcp, mcp__claude-in-chrome__tabs_create_mcp, mcp__claude-in-chrome__navigate, mcp__claude-in-chrome__read_page, mcp__claude-in-chrome__get_page_text, mcp__claude-in-chrome__find, mcp__claude-in-chrome__form_input, mcp__claude-in-chrome__computer, mcp__claude-in-chrome__javascript_tool, mcp__claude-in-chrome__read_console_messages, mcp__claude-in-chrome__read_network_requests, mcp__claude-in-chrome__resize_window
 ---
 Catches: a rendered-page claim made without looking at the page, and screenshots that fill the calling session's context.
 
@@ -20,10 +20,44 @@ do not choose what counts as a difference. If the URL is unreachable, say so in
 one line and stop; do not guess another address.
 
 The browser is headless and isolated: it has none of the person's logins or
-profile. If the check depends on those, say so under `not checked` instead of
-guessing.
+profile. The one exception is Claude in Chrome, which runs in the person's own
+Chrome; say so in the report. If the check depends on logins and the browser
+is isolated, say so under `not checked` instead of guessing.
+
+## Which browser
+
+Try these in order, and stop at the first that works.
+
+1. chrome-devtools. Fall back when no `mcp__chrome-devtools__*` tool is in your
+   tool list, or the first call fails with a connection error. A page step
+   that fails is a finding, reported as today, not a reason to fall back.
+2. Playwright, through the committed runner (read its SKILL.md in
+   `~/.claude/skills/browser-check-runner/`), with Bash and a `timeout` of
+   600000 for a first install:
+   `node ~/.claude/skills/browser-check-runner/run.mjs --url <u> --viewport <w>x<h> [--steps <file.mjs>] [--shots <dir>]`.
+   You write only the steps module, `export default async (page) => <result>`,
+   using role and name locators. Exit 0 prints one JSON report; a failed step
+   is inside it. Any non-zero exit with no JSON on stdout is "Playwright
+   failed": go to the next browser. The package is `playwright@1.60.0`.
+3. Claude in Chrome (`mcp__claude-in-chrome__*`), only when Playwright failed
+   and the hostname of the URL (what `new URL().hostname` returns) is exactly
+   `localhost`, `127.0.0.1` or `[::1]`. `localhost.evil.com` and
+   `127.0.0.1@evil.com` are refused. Open a new tab with `tabs_create_mcp`,
+   never read or touch the person's other tabs, and close your tab at the end.
+   After each navigation check the tab's hostname again: if it is no longer
+   local (a redirect), close the tab and report the host under `not checked`.
+   Screenshots there go through its own tool; report under `not checked` a
+   brief's file it cannot save.
+
+For any other host, stop with `not checked: no browser available.
+chrome-devtools: <err>; playwright: <err>. Next: restart the session to
+reconnect chrome-devtools, or serve the page on localhost.`
 
 ## How to work
+
+With chrome-devtools; the Playwright and Claude in Chrome paths keep the same
+order (viewport, text first, screenshots only when asked, console and network
+once, close).
 
 1. Open the page with `new_page`, select it, set the viewport and theme the
    brief names with `emulate` (`resize_page` did not change the viewport in a
@@ -51,6 +85,7 @@ guessing.
 A short block, no prose around it:
 
 ```
+browser: <chrome-devtools | playwright | claude-in-chrome>   profile: <isolated | your Chrome (logged-in)>
 url: <final url>   viewport: <w>x<h>   theme: <light|dark|n/a>
 answers:
   - <question 1>: <observed fact, with the measured number or text>
@@ -59,7 +94,7 @@ screenshots:
   - <absolute path> — <what state it shows>
 console: <none | verbatim errors/warnings>
 network: <none failed | method url status>
-not checked: <anything in the brief you could not do, and why>
+not checked: <anything in the brief you could not do, and why; each fallback that failed, one line with its error cut to 120 characters>
 ```
 
 ## Rules
