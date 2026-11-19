@@ -693,9 +693,11 @@ If anything is in flight, say what it is and print no handoff line.
      - Exit 0: its stdout is `<repo> <programme> <ticket>` then a tab and the
        ticket's name. The prompt is
        `resume <repo> <programme> <ticket>: <gist>`, and nothing open-ended.
-     - Exit 22: nothing is left for an agent. End with
-       ``safe to /clear; parked: next due <date>``, the line `next` printed,
-       instead of a `next:` line. The relay submits nothing on it.
+     - Exit 22: nothing is left for an agent. `next` printed one `parked: …`
+       line on stdout (`parked: next due <date>` or `parked: nothing due`).
+       End with `safe to /clear; ` followed by that line, for example
+       `safe to /clear; parked: next due 2026-11-24`, instead of a `next:`
+       line. The relay submits nothing on it.
      - Any other exit: say relais's stderr line, print no clear line, and
        never fall back to an open-ended prompt.
      - Without relais: name the map's own next ticket, or park. Never name
