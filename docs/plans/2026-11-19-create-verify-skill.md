@@ -157,7 +157,7 @@ pilots, a measurement before widening.
   greenharness-skills release and the pin in grh `catalog.toml`, before the
   pilots; after the pin a grh install or catalog test must list
   `create-verify-skill`
-- [ ] Phase 2 — pilot in sre-agent, 1 PR:
+- [x] Phase 2 — pilot in sre-agent, 1 PR:
   `.claude/skills/verify-sre-agent/SKILL.md`,
   `.claude/skills/verify-sre-agent/features/README.md`
 - [ ] Phase 3 — pilot in duro-app, 1 PR:
@@ -207,6 +207,28 @@ pilots, a measurement before widening.
   (it had no release); two simultaneous Launches are unguarded, and the
   generated skill says so.
 
+## Baseline (sre-agent, written before Phase 2)
+
+From the session transcripts of sre-agent's last 5 plans (all at the
+projects root). Repairs count a failed F2 check fixed and re-run;
+wall time runs from the first F2 command to the first verdict.
+
+| Plan | F2 check | Repairs | Blockers | Wall min |
+|---|---|---|---|---|
+| ci-fetches-release-assets | CI step under `env -i` | 0 | Linux binary won't run on macOS | 11 |
+| thanos-skeleton | focused pytest, evals via port-forward | 1 (zsh glob) | none | 10 |
+| claude-routing-and-budget | prod SQLite copy migrated, rolled back | 0 | none | 0.5 |
+| the-ladder | full suite with fakes | 1 (a test after review) | live smoke after release | 8 |
+| one-ticket-per-firing-alert | ticket-vision dev server + curl, pytest | 2 (zsh glob, curl script) | a land refused once | 18 |
+
+- Totals: 4 repairs over 5 plans (median 1); median 10 min to the
+  first verdict. Plan 1's 2 repairs on a kb-vision prototype are not
+  counted (another repo).
+- Kept out of the median: the-ladder's post-release live smoke (about
+  193 min, 2 repairs, found 2 production gaps); it is not pre-push F2.
+- None of the 5 started sre-agent itself; the pilot's F2 starts it, so
+  Phase 4 compares against F2 work of a different shape.
+
 ## Decision log
 
 - 2026-11-19: the person approved the plan as written; duro-app stays the
@@ -225,6 +247,32 @@ pilots, a measurement before widening.
   repairs, blockers and wall time from the session transcripts of
   sre-agent's last 5 plans), then run `create-verify-skill` in a sre-agent
   worktree. The duro-app Decide (or social-planner) is still the person's.
+- Phase 2 done 2026-11-19: sre-agent PR #95 merged (`f552763`, CI three
+  checks `success`). `verify-sre-agent` ships with `scripts/verify.py`,
+  `scripts/guard.py`, four feature files and `tests/test_verify_skill.py`
+  (9 tests). Pilot bar met: a fresh agent with only the skill ran F2 with
+  **0 repairs in about 62 s** (baseline: median 1 repair, 10 min). The
+  deferred Phase 1 checks ran here: a SIGINT mid-launch (six signal
+  patterns, all clean) and a second Launch refused. The pointer plan in
+  sre-agent holds every row. The person agreed a ruff per-file-ignore
+  (S603/S310) for verify helpers; the lint hook let only them apply it.
+- Generator feedback from Phase 2, for Phase 4 and the generator text:
+  (1) "Isolate" must cover credentials and cluster config, not only port
+  and data dir: the service builds a Kubernetes client from `KUBECONFIG`
+  at boot, and a first unisolated probe loaded the laptop's real
+  kubeconfig; the pilot builds the server's environment from nothing and
+  a guard refuses any non-loopback URL or kube server. (2) An empty
+  kubeconfig made the app fall back to a do-nothing orchestrator while
+  `/readyz` stayed 200: Doctor must check what the app wired, not only
+  that it answers. (3) A stdlib helper beside SKILL.md ran more reliably
+  than inline shell; the review found signal-window bugs (a mask held
+  across `Popen` is inherited across exec; a second signal raising into
+  teardown) that inline shell would have hidden. (4) `.claude/*` was
+  gitignored in sre-agent: the generator should check the skill is
+  committable. (5) A repo's ruff `S`/`T20` rules apply to the helper.
+- Next, Phase 3 (duro-app pilot): run `create-verify-skill` in a duro-app
+  worktree; it is a UI, so Drive hands off to `browser-check`. The Decide
+  (duro-app or social-planner) defaulted to duro-app on 2026-11-19.
 
 ## Implementation review
 
