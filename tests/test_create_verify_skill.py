@@ -14,11 +14,11 @@ SIGN_IN = "**Sign in:** <how, from the repository's\n   `verify-<app>` skill Lau
 
 def frontmatter(text):
     """Stdlib only (CI has no PyYAML): split each line on its first `: `."""
-    m = re.match(r"---\n(.*?)\n---\n", text, re.S)
-    if m is None:
+    head = re.match(r"---\n(.*?)\n---\n", text, re.S)
+    if head is None:
         raise AssertionError("no frontmatter between two --- lines")
     fields = {}
-    for line in m.group(1).splitlines():
+    for line in head.group(1).splitlines():
         key, _, value = line.partition(": ")
         fields[key] = value
     return fields
