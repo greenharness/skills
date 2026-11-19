@@ -79,19 +79,19 @@ ignored, add a negation for the skill's directory in the same change.
   guide's `Sign in:` line cites this.
 - The state directory comes from `mktemp -d` and holds the server's data.
   The log lives outside it (beside the pidfile, `<pidfile>.log`): the
-  teardown of a failed Launch removes the state directory and keeps the log
-  on purpose, since it explains the failure. Launch opens the log only after
-  the alive-group check passes, emptying what a failed attempt left;
-  Cleanup removes it. The pidfile lives outside the repository at
-  `${TMPDIR:-/tmp}/verify-<app>-<h>.json`, where `<h>` is the first 12 hex
-  characters of the sha1 of the worktree's real path. Launch prints that
-  path as its only stdout line, before it starts anything, and flushes it
-  (`print(path, flush=True)`: a tool call's stdout is a pipe, which Python
-  buffers), so a SIGKILLed Launch still leaves its caller the path; Cleanup
-  takes it as its argument. If a pidfile is already there and its group is
-  still alive, Launch stops with `fail:` and starts nothing. Two Launches
-  started at the same instant are not guarded against; say so in the
-  generated skill.
+  teardown of a failed Launch removes the state directory (unless a member
+  survives) and keeps the log on purpose, since it explains the failure.
+  Launch opens the log only after the alive-group check passes, emptying
+  what a failed attempt left; Cleanup removes it. The pidfile lives outside
+  the repository at `${TMPDIR:-/tmp}/verify-<app>-<h>.json`, where `<h>` is
+  the first 12 hex characters of the sha1 of the worktree's real path.
+  Launch prints that path as its only stdout line, before it starts
+  anything, and flushes it (`print(path, flush=True)`: a tool call's stdout
+  is a pipe, which Python buffers), so a SIGKILLed Launch still leaves its
+  caller the path; Cleanup takes it as its argument. If a pidfile is already
+  there and its group is still alive, Launch stops with `fail:` and starts
+  nothing. Two Launches started at the same instant are not guarded against;
+  say so in the generated skill.
 - Start the server as the leader of its own process group, so Cleanup can
   signal exactly the tree you started. macOS has no `setsid(1)`; use
   Python's `subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=log,
@@ -132,17 +132,21 @@ ignored, add a negation for the skill's directory in the same change.
   set before it tears down. Release the mask before a bind-failed retry. The
   teardown reads the group id from `pgid` and skips Cleanup steps 1 and 2:
   Launch spawned the group, so live members are its own. It runs step 3
-  (TERM, poll, KILL), names any survivor on stderr, removes the state
-  directory and the pidfile if one was written, and keeps the log, printing
-  its path. It does not take step 4's exit codes: it exits `128 + signum`
-  (129 on HUP, 130 on INT, 143 on TERM), and 1 on a missed deadline or a
-  survivor. It covers launch-until-ready only: once ready, the launcher
-  exits and leaves the app up, since every agent tool call is a fresh
-  process. A shell recipe (no helper) arms a `trap` on EXIT HUP INT TERM
-  instead, exiting with the same codes, and clears it
-  (`trap - EXIT HUP INT TERM`) once ready, or an EXIT trap left armed would
-  kill the app before Drive runs; it cannot hold signals across the start,
-  so say in the generated skill that it keeps that window.
+  (TERM, poll, KILL) and keeps the log, printing its path. When the group is
+  empty it removes the state directory and the pidfile if one was written.
+  When a member survives it keeps the state directory and the pidfile, so a
+  later Cleanup can finish, and prints
+  `fail: <pgid> still has <pids> — check pgrep -lg <pgid>`.
+  It does not take step 4's exit codes: it exits `128 + signum` (129 on
+  HUP, 130 on INT, 143 on TERM), and 1 on a missed deadline or a survivor.
+  It covers
+  launch-until-ready only: once ready, the launcher exits and leaves the app
+  up, since every agent tool call is a fresh process. A shell recipe (no
+  helper) arms a `trap` on EXIT HUP INT TERM instead, exiting with the same
+  codes, and clears it (`trap - EXIT HUP INT TERM`) once ready, or an EXIT
+  trap left armed would kill the app before Drive runs; it cannot hold
+  signals across the start, so say in the generated skill that it keeps that
+  window.
 
 ### Doctor
 
@@ -179,8 +183,9 @@ skill. A skipped precondition is a failure, not a pass.
 
 Its own step, run from a fresh shell with only the pidfile path in hand:
 
-1. Read the pidfile. If it is missing, print `fail: no pidfile at <path> —
-   nothing to stop` and exit 1. (A Launch interrupted before the pidfile
+1. Read the pidfile. If it is missing, remove a lone `<pidfile>.log` left
+   by a failed Launch, print `fail: no pidfile at <path> — nothing to
+   stop` and exit 1. (A Launch interrupted before the pidfile
    existed is torn down by its own handlers, or its trap in a shell
    recipe, from `pgid`.)
 2. Decide whether the group is ours, in this order:
