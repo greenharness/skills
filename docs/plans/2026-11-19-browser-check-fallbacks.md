@@ -157,7 +157,7 @@ laptop edited first):
   `env`. Also there: the allow entries for the Claude in Chrome tools the agent
   lists (8 missing today). Done when a fresh session lists `chrome-devtools`
   connected.
-- [ ] Phase 1 — the agent text, its runner and its test, 1 PR in
+- [x] Phase 1 (proof (b) open, see Verification) — the agent text, its runner and its test, 1 PR in
   greenharness-skills (worktree from `origin/main`, the plan landed as
   `docs/plans/2026-11-19-browser-check-fallbacks.md`):
   `parts/workflow/agents/browser-check.md`,
@@ -204,17 +204,20 @@ laptop edited first):
 
 ## Verification
 
-| Input | Expected |
-|---|---|
-| `python3 -m unittest discover tests` | the new test RED before the edit, all GREEN after |
-| `scripts/check.sh` | exit 0 (no machine paths: the cache dir is `$XDG_CACHE_HOME`/`$HOME` based) |
-| fresh session after the pre-step | `chrome-devtools` connected, no timeout |
-| runner on the throwaway page | console error, uncaught error and the 500 in its JSON, exit 0; no Chromium process left (`pgrep -f chrome-headless-shell` empty), also after a `kill -TERM` mid-run (exit 143) |
-| live (a) playwright | `browser: playwright`, measured heading and lines, console count, browser closed |
-| live (b) claude-in-chrome | `browser: claude-in-chrome`, tab opened and closed, Playwright's failure under `not checked` |
-| live (c) non-local URL | `not checked: no browser available`, both failures listed |
-| live (d) chrome-devtools | `browser: chrome-devtools` |
-| installed copies, after `grh install workflow` from the released grh | `diff` of the installed agent and runner against the released files: empty |
+Phase 1 observed on 2026-11-19, tree 7ea5489 (the runner and test rows), and the agent proofs on 93e2bb2's agent text, which the fix commits left unchanged.
+
+| Input | Expected | Actual |
+|---|---|---|
+| `python3 -m unittest discover tests` | the new test RED before the edit, all GREEN after | `tests/test_browser_check.py` absent on the base (RED by absence); 16/16 browser-check tests ran with no skip on this machine, full suite OK. On CI the two page tests skip with a printed reason (empty browser cache) |
+| `scripts/check.sh` | exit 0 (no machine paths: the cache dir is `$XDG_CACHE_HOME`/`$HOME` based) | exit 0 |
+| fresh session after the pre-step | `chrome-devtools` connected, no timeout | `claude mcp list` from a fresh process: `chrome-devtools: … ✔ Connected`, 4.3 s for every server (global `chrome-devtools-mcp@1.13.0`, `MCP_TIMEOUT=60000`, dotfiles#70) |
+| runner on the throwaway page | console error, uncaught error and the 500 in its JSON, exit 0; no Chromium process left | `console` 2 (the error and the 500's resource line), `pageErrors` 1, `httpErrors` 1 (`GET /boom 500`), exit 0; cold run 9.7 s (`Playwright installed in 2 s`, `browser downloaded in 7 s`); after the exit `pgrep -f chromium_headless_shell-1223` counted 0 |
+| `kill -TERM` mid-run (a 30 s steps module) | exit 143, no Chromium left, stdout empty | 4 Chromium processes before, exit 143, 0 after, 0 bytes on stdout (twice: on 93e2bb2 and on 7ea5489) |
+| live (a) playwright | `browser: playwright`, measured heading and lines, console count, browser closed | `browser: playwright   profile: isolated`; heading "Happier", 4 lines (the sign-in screen: that origin has no session), 0 console errors, 0 HTTP ≥ 400. Run in a fresh headless `claude -p` with no MCP server, because a running session keeps the agent text it loaded at start |
+| live (b) claude-in-chrome | `browser: claude-in-chrome`, tab opened and closed, Playwright's failure under `not checked` | **not verified.** The chain reached the step and reported cleanly (Playwright: exit 2, ENOTCACHED; Claude in Chrome tools absent), but `mcp__claude-in-chrome__*` tools load neither in this session nor in `claude -p --chrome`; the native host running belongs to the Claude desktop app. Open check, owner: the agent, in the next interactive Claude Code session with the extension connected, by 2026-11-26 |
+| live (c) non-local URL | `not checked: no browser available`, both failures listed | `https://example.com/`: both failures named, Claude in Chrome not tried (not a local host), no temp install left in the cache |
+| live (d) chrome-devtools | `browser: chrome-devtools` | `browser: chrome-devtools   profile: isolated`; the same heading and 4 lines as (a), 33 requests all 200/204 |
+| installed copies, after `grh install workflow` from the released grh | `diff` of the installed agent and runner against the released files: empty | Phase 2 |
 
 ## Risks
 
@@ -227,5 +230,18 @@ laptop edited first):
   lacks it): a first fallback can take minutes; the runner's `note:` line says so.
 - `MCP_TIMEOUT` is read by Claude Code at startup; if a fresh session still
   times out, the global binary alone is the fix and the row says which.
+
+## Decision log
+
+- 2026-11-19: grh already pinned skills 0.17.0 (grh#56, after the plan was written from a stale checkout); Phase 2 bumps it from there.
+- 2026-11-19: the agent proofs ran in fresh headless `claude -p` sessions (`--strict-mcp-config` with an empty MCP config for real chrome-devtools absence), since a running session does not reload agent definitions.
+- 2026-11-19: proof (b) could not drive Claude in Chrome here; Phase 1 closes with it as a dated open check rather than holding the runner, which (a), (c) and (d) prove.
+
+## Implementation review
+
+- implementation-review: approve-with-changes ×3 (47k + 40k + 35k, 44 + 57 + 52 s). Fixed: steps output off stdout, test pins (ENOTCACHED, `127.0.0.1@evil.com`), launch failure during stop logged, run-wide fault handlers. Deliberate: a fault after the report is printed, a fault before a report skipping cleanup (both low, filed as a follow-up).
+- backend: approve-with-changes ×3 (46k + 38k + 31k, 69 + 55 + 43 s). Fixed: title deadline, temp dir on a signal, existing shots only, stale target renamed aside, npm close awaited. Deliberate: a `.stale-<pid>` left by a crash mid-rename; hung-title and missing-shot tests (low, follow-up).
+- lang:python: approve-with-changes, approve-with-changes, approve (34k + 28k + 25k). Fixed: timeouts, temp env helper, `setUpClass`, the exists guard. Deliberate: frontmatter split (repository's pattern), `offline_environment` as a class.
+- lang:typescript: approve-with-changes, approve (34k + 28k). Fixed: signals vs Playwright's own handlers, parseArgs, bounded timeout, unserialisable result, RunnerError cause.
 
 <!-- panel: repos=greenharness-skills,grh adds=lang:typescript reviewers=backend,lang:python,lang:typescript,tui,unix,codex body-sha=24cb6fb1986c -->
