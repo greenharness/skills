@@ -681,8 +681,10 @@ If anything is in flight, say what it is and print no handoff line.
    safe to /clear; next: `<prompt>`
    ```
 
+   - The backticks around the prompt are part of the line: the clear-relay
+     plugin arms on nothing else, and a bare prompt fails silently.
    - The prompt is one line, not empty, at most 2,000 characters, with no
-     backtick in it.
+     backtick inside it.
    - It is what a fresh session needs to resume: for example
      `implement docs/plans/<file> in <repo>`.
    - **In a programme it names one ticket that no other session holds.**
@@ -692,7 +694,9 @@ If anything is in flight, say what it is and print no handoff line.
      programme no session is on, and reserves it for the next session.
      - Exit 0: its stdout is `<repo> <programme> <ticket>` then a tab and the
        ticket's name. The prompt is
-       `resume <repo> <programme> <ticket>: <gist>`, and nothing open-ended.
+       `resume <repo> <programme> <ticket>: <gist>`, and nothing open-ended,
+       so the whole line reads
+       ``safe to /clear; next: `resume <repo> <programme> <ticket>: <gist>` ``.
      - Exit 22: nothing is left for an agent. `next` printed one `parked: …`
        line on stdout (`parked: next due <date>` or `parked: nothing due`).
        End with `safe to /clear; ` followed by that line, for example
