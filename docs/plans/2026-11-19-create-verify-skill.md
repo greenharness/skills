@@ -148,7 +148,7 @@ pilots, a measurement before widening.
 
 ## Phases
 
-- [ ] Phase 1 — the generator skill, 1 PR in greenharness-skills:
+- [x] Phase 1 — the generator skill, 1 PR in greenharness-skills:
   `parts/workflow/skills/create-verify-skill/SKILL.md`,
   `tests/test_create_verify_skill.py`, `README.md`, plus the F2 wording in
   `parts/workflow/skills/worktree-task/SKILL.md` (UI and Non-UI bullets) and
@@ -211,8 +211,20 @@ pilots, a measurement before widening.
 
 - 2026-11-19: the person approved the plan as written; duro-app stays the
   second pilot (the open Decide defaulted to it).
-- Phase 1 stays open: the release and the grh `catalog.toml` pin follow this
-  PR, before the pilots.
+- Phase 1 done 2026-11-19: PR #33 merged, skills `v0.16.0` released (run
+  `success`, checksum OK, the tarball holds `create-verify-skill`), grh
+  PR #55 merged (pin 0.16.0, the skill added to the workflow bundle in
+  `catalog.toml`: the bundle names skills one by one, so the pin alone would
+  not install it), grh `v0.12.0` released (all nine jobs `success`, crates.io
+  0.12.0 not yanked), `brew upgrade grh` and `grh install workflow` run on
+  this machine: `create-verify-skill` and the F2 sentence are in
+  `~/.claude/skills`. grh skipped `agents/browser-check.md` (a local copy it
+  did not place; not forced). Two releases, not the one the plan counted:
+  the grh pin only reaches a machine through a grh release.
+- Next, Phase 2 (sre-agent pilot): first write the baseline here (F2
+  repairs, blockers and wall time from the session transcripts of
+  sre-agent's last 5 plans), then run `create-verify-skill` in a sre-agent
+  worktree. The duro-app Decide (or social-planner) is still the person's.
 
 ## Implementation review
 
