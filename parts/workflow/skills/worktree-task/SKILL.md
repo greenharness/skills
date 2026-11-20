@@ -177,10 +177,15 @@ below names one of them.
   writes one.
   - UI: launch the `browser-check` agent with `model: "haiku"` (failure: `agent-model-fallback`) on the local dev server (its start, login and seed
     from the `verify-*` skill's Launch and Drive, when there is one) with
-    the route, viewport, theme, steps, questions and the short sha; it opens
+    the route, viewport, theme, steps, questions and the tree block, the line
+    `greenbelay tree-sha --block` prints after the last commit (its first 12
+    characters are the short sha the evidence is filed under); it opens
     the changed route, exercises the interaction (click, type, mobile width),
     reads console and network, and files screenshots under
-    `attestations/<sha>/`. Read only its report: the screenshots stay out of
+    `attestations/<sha>/`. A commit after the check changes the tree, so run
+    the check again before the push: greenbelay's `push-browser-check` gate
+    reads the report bound to the pushed tree, and an older one does not
+    count. Read only its report: the screenshots stay out of
     this session. Done when the report answers every question and every path
     it lists exists. Where a picked artboard exists (`handoff.prove-fidelity`),
     name in the brief the elements and properties to measure; compare the
@@ -423,7 +428,8 @@ below names one of them.
      stays as it is. A fallback to steps 5–7 (the hook journals
      `unchanged-skipped`, or holds a step 0 push) runs 3b first.
      Launch `browser-check` (`model: "haiku"`; failure:
-     `agent-model-fallback`) on the exact URL step 5 will open. The caller's
+     `agent-model-fallback`) on the exact URL step 5 will open, with the same
+     tree block as F2 (`greenbelay tree-sha --block`). The caller's
      brief to it says to open the page with `new_page` and an
      `isolatedContext` of a fresh name, never in the default context: that
      one keeps an earlier agent's login across runs (measured: a cold load

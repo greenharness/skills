@@ -49,6 +49,18 @@ class AgentText(unittest.TestCase):
     def test_which_browser_precedes_how_to_work(self):
         self.assertLess(self.text.index("## Which browser"), self.text.index("## How to work"))
 
+    def test_report_contract_greenbelay_reads(self):
+        # greenbelay's push-browser-check counts a report as a check only on these
+        # lines; a wording edit here changes a contract another tool parses.
+        start = self.text.index("## What you report")
+        block = self.text[self.text.index("```\n", start) + 4:]
+        lines = block[:block.index("```")].splitlines()
+        self.assertTrue(lines[0].startswith("browser: "), lines[0])
+        self.assertTrue(lines[1].startswith("url: "), lines[1])
+        self.assertIn("`unreachable: <url>`", self.text)
+        self.assertIn("no\n`browser:` line", self.text)
+        self.assertIn("<<<TREE repo=… sha=…>>>", self.text)
+
     def test_every_playwright_pin_is_the_runner_version(self):
         for text in (self.text, SKILL.read_text(), RUNNER.read_text()):
             self.assertEqual(set(re.findall(r"playwright@([\w.\-]+)", text)) - {PLAYWRIGHT_VERSION, "${PLAYWRIGHT_VERSION}"}, set())
