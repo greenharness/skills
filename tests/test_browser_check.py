@@ -61,6 +61,8 @@ class AgentText(unittest.TestCase):
         self.assertIn("`unreachable: <url>`", flat)
         self.assertIn("no `browser:` line", flat)
         self.assertIn("`chrome-error://`", flat)
+        self.assertIn("`about:blank`", flat)
+        self.assertIn("is a finding in the block, not unreachable", flat)
         self.assertIn("<<<TREE repo=… sha=…>>>", flat)
 
     def test_every_playwright_pin_is_the_runner_version(self):

@@ -408,9 +408,12 @@ below names one of them.
      server on a free port and keep it up until the person answers.
   2. **Screenshots.** Take `before.jpg` from `origin/main`'s build or from a
      step taken earlier, and `after.jpg` from this commit, at the same route
-     and state. Put them in `~/.claude/greenbelay/attestations/<sha>/` (the
-     `<sha>` of F2: the first 12 hex characters after `sha=` in the tree
-     block, so one commit's evidence sits in one directory),
+     and state. Put them in `~/.claude/greenbelay/attestations/<sha>/`,
+     where `<sha>` is the first 12 hex characters after `sha=` in a
+     `greenbelay tree-sha --block` run now, at the start of F7, for the
+     commit being pushed (3b reuses that line, so one commit's evidence sits
+     in one directory; a commit after this step means running step 2 and 3b
+     again),
      outside the worktree.
   3. **Write the guide** in that directory as `guide.md`, from
      [preview-guide-template.md](preview-guide-template.md). Fill every
@@ -432,8 +435,8 @@ below names one of them.
      `unchanged-skipped`, or holds a step 0 push) runs 3b first.
      Launch `browser-check` (`model: "haiku"`; failure:
      `agent-model-fallback`) on the exact URL step 5 will open, with the
-     tree block of the commit being pushed: run `greenbelay tree-sha --block`
-     again now, since a commit after F2 (a review fix) changed it. The caller's
+     tree block step 2 took for the commit being pushed (never F2's: a
+     review fix after F2 changed the tree). The caller's
      brief to it says to open the page with `new_page` and an
      `isolatedContext` of a fresh name, never in the default context: that
      one keeps an earlier agent's login across runs (measured: a cold load
