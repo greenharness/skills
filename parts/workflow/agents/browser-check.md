@@ -20,9 +20,12 @@ do not choose what counts as a difference. The brief may carry a
 `<<<TREE repo=… sha=…>>>` line (what `greenbelay tree-sha --block` prints: the
 content id of the tree under check); when it does, `<sha>` below is the first
 12 characters of that id, and greenbelay's `push-browser-check` gate reads this
-report, bound to that line, as the proof the pushed tree was checked. If the
-URL is unreachable, report exactly one line, `unreachable: <url>`, with no
-`browser:` line, and stop; do not guess another address.
+report, bound to that line, as the proof the pushed tree was checked. The URL
+is unreachable when the first navigation is refused, fails DNS, times out, or
+ends on `chrome-error://` or `about:blank`: then report exactly one line,
+`unreachable: <url>`, with no `browser:` line and no block, and stop; do not
+guess another address. A later page step that fails is a finding in the
+block, not unreachable.
 
 The browser is headless and isolated: it has none of the person's logins or
 profile. The one exception is Claude in Chrome, which runs in the person's own

@@ -178,8 +178,9 @@ below names one of them.
   - UI: launch the `browser-check` agent with `model: "haiku"` (failure: `agent-model-fallback`) on the local dev server (its start, login and seed
     from the `verify-*` skill's Launch and Drive, when there is one) with
     the route, viewport, theme, steps, questions and the tree block, the line
-    `greenbelay tree-sha --block` prints after the last commit (its first 12
-    characters are the short sha the evidence is filed under); it opens
+    `greenbelay tree-sha --block` prints after the last commit (the first 12
+    hex characters after `sha=` are the `<sha>` the evidence is filed
+    under); it opens
     the changed route, exercises the interaction (click, type, mobile width),
     reads console and network, and files screenshots under
     `attestations/<sha>/`. A commit after the check changes the tree, so run
@@ -407,7 +408,9 @@ below names one of them.
      server on a free port and keep it up until the person answers.
   2. **Screenshots.** Take `before.jpg` from `origin/main`'s build or from a
      step taken earlier, and `after.jpg` from this commit, at the same route
-     and state. Put them in `~/.claude/greenbelay/attestations/<short-sha>/`,
+     and state. Put them in `~/.claude/greenbelay/attestations/<sha>/` (the
+     `<sha>` of F2: the first 12 hex characters after `sha=` in the tree
+     block, so one commit's evidence sits in one directory),
      outside the worktree.
   3. **Write the guide** in that directory as `guide.md`, from
      [preview-guide-template.md](preview-guide-template.md). Fill every
@@ -428,8 +431,9 @@ below names one of them.
      stays as it is. A fallback to steps 5–7 (the hook journals
      `unchanged-skipped`, or holds a step 0 push) runs 3b first.
      Launch `browser-check` (`model: "haiku"`; failure:
-     `agent-model-fallback`) on the exact URL step 5 will open, with the same
-     tree block as F2 (`greenbelay tree-sha --block`). The caller's
+     `agent-model-fallback`) on the exact URL step 5 will open, with the
+     tree block of the commit being pushed: run `greenbelay tree-sha --block`
+     again now, since a commit after F2 (a review fix) changed it. The caller's
      brief to it says to open the page with `new_page` and an
      `isolatedContext` of a fresh name, never in the default context: that
      one keeps an earlier agent's login across runs (measured: a cold load

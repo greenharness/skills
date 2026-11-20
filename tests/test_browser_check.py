@@ -57,9 +57,11 @@ class AgentText(unittest.TestCase):
         lines = block[:block.index("```")].splitlines()
         self.assertTrue(lines[0].startswith("browser: "), lines[0])
         self.assertTrue(lines[1].startswith("url: "), lines[1])
-        self.assertIn("`unreachable: <url>`", self.text)
-        self.assertIn("no\n`browser:` line", self.text)
-        self.assertIn("<<<TREE repo=… sha=…>>>", self.text)
+        flat = re.sub(r"\s+", " ", self.text)
+        self.assertIn("`unreachable: <url>`", flat)
+        self.assertIn("no `browser:` line", flat)
+        self.assertIn("`chrome-error://`", flat)
+        self.assertIn("<<<TREE repo=… sha=…>>>", flat)
 
     def test_every_playwright_pin_is_the_runner_version(self):
         for text in (self.text, SKILL.read_text(), RUNNER.read_text()):
