@@ -116,8 +116,11 @@ The approved plan is the branch's FIRST commit, before any code.
    task identity. **programme-run case** (ADR-0080): a ticket agent started
    by a programme driver calls no ExitPlanMode and asks nothing. Its plan is
    the file it wrote and ran the `plan-review` skill on, in its own
-   transcript; the person's approval of the programme is the approval. The
-   sha check of step 4 runs on that file.
+   transcript; the person's approval of the programme is the approval. That
+   file is already `docs/plans/<date>-<slug>.md` in the worktree: step 3 is
+   done (`greenbelay plan-panel` wrote its `plan-id`), and step 4 compares
+   `greenbelay plan-sha --short` of that file, front matter and all, with
+   its `body-sha`, since it is the file the panel hashed.
 2. **Reuse before writing.** If `docs/plans/` already holds an `active` plan
    for this work, continue it instead of adding a second one.
 3. **Write it** as `docs/plans/<approval-date>-<slug>.md` (slug: the H1,
@@ -401,9 +404,11 @@ below names one of them.
   **Never ask for an approval without a guide.** A programme ticket agent
   has no person to ask: its UI change takes the step 0 path, and with
   no `evidence:` preview, the ticket is held (the driver lists it in its
-  summary).
+  summary). Every step 0 branch below that would ask the person holds the
+  ticket too.
   0. **Planned evidence**.
-     If the plan approved through ExitPlanMode has, in its body, a
+     If the plan approved through ExitPlanMode (or, in a programme run, the
+     ticket agent's reviewed plan from step 1) has, in its body, a
      `## Preview` section whose first non-empty line starts with
      `evidence:`, do steps 1–3 (server, screenshots, guide; not 3b),
      compare every existing screen against the base, and put the
