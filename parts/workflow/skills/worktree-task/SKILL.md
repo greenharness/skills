@@ -177,10 +177,16 @@ below names one of them.
   writes one.
   - UI: launch the `browser-check` agent with `model: "haiku"` (failure: `agent-model-fallback`) on the local dev server (its start, login and seed
     from the `verify-*` skill's Launch and Drive, when there is one) with
-    the route, viewport, theme, steps, questions and the short sha; it opens
+    the route, viewport, theme, steps, questions and the tree block, the line
+    `greenbelay tree-sha --block` prints after the last commit (the first 12
+    hex characters after `sha=` are the `<sha>` the evidence is filed
+    under); it opens
     the changed route, exercises the interaction (click, type, mobile width),
     reads console and network, and files screenshots under
-    `attestations/<sha>/`. Read only its report: the screenshots stay out of
+    `attestations/<sha>/`. A commit after the check changes the tree, so run
+    the check again before the push: greenbelay's `push-browser-check` gate
+    reads the report bound to the pushed tree, and an older one does not
+    count. Read only its report: the screenshots stay out of
     this session. Done when the report answers every question and every path
     it lists exists. Where a picked artboard exists (`handoff.prove-fidelity`),
     name in the brief the elements and properties to measure; compare the
@@ -402,7 +408,12 @@ below names one of them.
      server on a free port and keep it up until the person answers.
   2. **Screenshots.** Take `before.jpg` from `origin/main`'s build or from a
      step taken earlier, and `after.jpg` from this commit, at the same route
-     and state. Put them in `~/.claude/greenbelay/attestations/<short-sha>/`,
+     and state. Put them in `~/.claude/greenbelay/attestations/<sha>/`,
+     where `<sha>` is the first 12 hex characters after `sha=` in a
+     `greenbelay tree-sha --block` run now, at the start of F7, for the
+     commit being pushed (3b reuses that line, so one commit's evidence sits
+     in one directory; a commit after this step means running step 2 and 3b
+     again),
      outside the worktree.
   3. **Write the guide** in that directory as `guide.md`, from
      [preview-guide-template.md](preview-guide-template.md). Fill every
@@ -423,7 +434,9 @@ below names one of them.
      stays as it is. A fallback to steps 5–7 (the hook journals
      `unchanged-skipped`, or holds a step 0 push) runs 3b first.
      Launch `browser-check` (`model: "haiku"`; failure:
-     `agent-model-fallback`) on the exact URL step 5 will open. The caller's
+     `agent-model-fallback`) on the exact URL step 5 will open, with the
+     tree block step 2 took for the commit being pushed (never F2's: a
+     review fix after F2 changed the tree). The caller's
      brief to it says to open the page with `new_page` and an
      `isolatedContext` of a fresh name, never in the default context: that
      one keeps an earlier agent's login across runs (measured: a cold load

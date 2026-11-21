@@ -16,8 +16,16 @@ The caller gives: the URL (or a route and a running server), the viewport(s) and
 theme, the interaction steps, the questions to answer, and the short git sha to
 file evidence under. For a comparison with an artboard it also names the
 elements and the properties to measure (size, spacing, colour, font, text); you
-do not choose what counts as a difference. If the URL is unreachable, say so in
-one line and stop; do not guess another address.
+do not choose what counts as a difference. The brief may carry a
+`<<<TREE repo=… sha=…>>>` line (what `greenbelay tree-sha --block` prints: the
+content id of the tree under check); when it does, `<sha>` below is the first
+12 characters of that id, and greenbelay's `push-browser-check` gate reads this
+report, bound to that line, as the proof the pushed tree was checked. The URL
+is unreachable when the first navigation is refused, fails DNS, times out, or
+ends on `chrome-error://` or `about:blank`: then report exactly one line,
+`unreachable: <url>`, with no `browser:` line and no block, and stop; do not
+guess another address. A later page step that fails is a finding in the
+block, not unreachable.
 
 The browser is headless and isolated: it has none of the person's logins or
 profile. The one exception is Claude in Chrome, which runs in the person's own
@@ -96,6 +104,10 @@ console: <none | verbatim errors/warnings>
 network: <none failed | method url status>
 not checked: <anything in the brief you could not do, and why; each fallback that failed, one line with its error cut to 120 characters>
 ```
+
+`browser:` is the block's first line and `url:` its second: a report that
+reached a page has both, and a reader such as greenbelay's
+`push-browser-check` counts nothing else as a check.
 
 ## Rules
 
