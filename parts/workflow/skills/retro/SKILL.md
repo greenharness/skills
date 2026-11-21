@@ -8,8 +8,8 @@ disable-model-invocation: true
 
 You do a **retrospective**. You do not fix the session's task. You find what
 in the agent's **environment** made the session slower or wrong, and you
-propose the one change that stops it next time. You change nothing. The
-person picks.
+propose the one change that stops it next time. You change nothing, except
+the cause tally in step 4. The person picks.
 
 Adapted from mattpocock/skills (see [NOTICE.md](NOTICE.md)).
 
@@ -69,6 +69,30 @@ Look for candidates in each class. A class with nothing is fine; say so.
 - **Information access**: the agent did not have a log, a metric, or a
   read-only view that would have answered the question.
 
+Give each candidate exactly one cause, from this fixed list, so the same
+mistake keeps the same name from one retro to the next:
+
+- **A greenbelay rule name**, when a rule names the mistake
+  (`whole-file-dump`, `file-reread`, `pipe-to-tail`, `chain-with-and`, …).
+  `greenbelay status` lists the names.
+- **A relais cause**, when the mistake is a relais run failure. Write it
+  with the `relais:` prefix: `relais:scope_exceeded`, `relais:check_failed`,
+  `relais:criteria_unmet`, `relais:criterion_unreported`,
+  `relais:same_failure_recurrence`, `relais:review_findings`. The names come
+  from relais's cause query
+  (`docs/programmes/run-lessons/cause-counts.py --list-causes --class guidance`
+  in the relais repository); the query takes the name without the prefix.
+  When `~/.local/state/relais/ledger.sqlite` does not exist, use no
+  `relais:` cause.
+- **An agent-behaviour cause** that no rule or reason names yet:
+  `stops-before-verifying`, `skill-not-loaded`, `skill-misfired`,
+  `pointer-missing`, `check-not-wired`, `rule-missing`, `stale-text`,
+  `no-op-text`, `info-missing`.
+- **`unlisted`**, when nothing fits. Then propose the new cause name as a
+  candidate of its own. Do not invent a name inside another candidate.
+
+Done when every candidate has one cause from the list.
+
 ## 3. Give each candidate exactly one fix
 
 Use the first fix that applies:
@@ -85,11 +109,16 @@ Use the first fix that applies:
 
 If an earlier report in `~/.claude/retro/` already proposed the same fix,
 drop the candidate, unless its evidence is new. Then say "again, new
-evidence".
+evidence". Tally its cause in step 4 even when you drop it.
+
+A fix names its target: the cause's count, its denominator and the week
+(`harness.change-targets-a-counted-cause`). When no count exists, the fix
+ships its count first. A cause with fewer than 5 events in 28 days is not a
+target: its candidate reads `Fix: none yet; under 5 events in 28 days`.
 
 ## 4. Report
 
-Print the list in your reply, most severe first (no file: a headless run captures the reply). Severity is the cost if nothing changes:
+Print the list in your reply, most severe first (no report file: a headless run captures the reply; the tally below is the one file). Severity is the cost if nothing changes:
 a wrong result before lost time, lost time before lost tokens.
 
 For each candidate:
@@ -97,10 +126,38 @@ For each candidate:
 ```
 ### <n>. <one-line title>  (severity: high | medium | low)
 Evidence: <transcript path:line, or the tool call and its result, short>
+Cause: <one cause from step 2>
+Target: <count>/<denominator> <unit>, week of <Monday>; recount: <command>
 Fix: <the one fix>  →  <where it lands: file, repo, rule id>
 ```
 
+The Target line takes its numbers from the cause's own count:
+
+- a `relais:` cause: the cause query's row for the last complete week, and
+  its recount command with an absolute or `~` path, so it runs from any
+  directory;
+- a greenbelay rule: `greenbelay status` (firings per 1,000 calls);
+- an agent-behaviour cause: the tally below, as `<sessions with the cause>/
+  <sessions retro'd> sessions retro'd`, with this recount (`<cause>` and
+  `<from>`, `<to>` as `YYYY-MM-DD`, the week's Monday and the next one):
+  `awk -F'\t' -v c=<cause> -v a=<from> -v b=<to> '$1>=a && $1<b {if($3=="__reviewed__")r[$2]=1; if($3==c)h[$2]=1} END{n=0;for(s in h)if(s in r)n++; m=0;for(s in r)m++; print n"/"m}' ~/.claude/retro/causes.tsv`;
+- no count at all: `Target: uncounted; count by: <how>`.
+
 Start the report with one line: `candidates: <N>`.
 
-Done when every candidate has evidence and exactly one fix. Retro does not
-apply any fix.
+Then append the tally to `~/.claude/retro/causes.tsv` (create the directory
+when it is missing), one tab-separated line `<session start date> <session
+id> <cause>`, written in a single append:
+
+- one `__reviewed__` line for every session you read, also when it gave no
+  candidate;
+- one line per cause you observed, dropped candidates included;
+- no line whose session id and cause are already in the file.
+
+The tally counts sessions retro'd, not all sessions. It is the only file
+retro writes.
+
+Done when every candidate has evidence, one cause, one Target and exactly
+one Fix line (a fix, or `none yet` under the 5-event floor), and the tally
+holds a `__reviewed__` line for each session read.
+Retro does not apply any fix.
