@@ -113,7 +113,11 @@ The approved plan is the branch's FIRST commit, before any code.
 1. **Which plan.** The path this session's ExitPlanMode result gave. If this
    session approved no plan, ask the person for the path. Never pick the
    newest file in `~/.claude/plans/` — with parallel sessions, mtime is not
-   task identity.
+   task identity. **programme-run case** (ADR-0080): a ticket agent started
+   by a programme driver calls no ExitPlanMode and asks nothing. Its plan is
+   the file it wrote and ran the `plan-review` skill on, in its own
+   transcript; the person's approval of the programme is the approval. The
+   sha check of step 4 runs on that file.
 2. **Reuse before writing.** If `docs/plans/` already holds an `active` plan
    for this work, continue it instead of adding a second one.
 3. **Write it** as `docs/plans/<approval-date>-<slug>.md` (slug: the H1,
@@ -223,7 +227,12 @@ below names one of them.
   when the branch carries no plan). One independent reviewer reads the
   diff against the plan and the active rules. The greenbelay
   `implementation-review` hook checks at the push that it happened for
-  the tree being pushed, so run it after F4, on the committed tree:
+  the tree being pushed, so run it after F4, on the committed tree. The
+  session that pushes launches the reviewers itself, whether it is the main
+  session or an agent: from greenbelay 6.7.0 the hook also reads the
+  session's side transcript (`<session>/subagents/*.jsonl`), so an agent's
+  own review counts for the tree it binds. A programme ticket agent runs
+  this whole step itself; its driver never reviews for it.
   1. Post `📍 <project>: implementation review, round 1, about 2 min.`
   2. Build the brief with one command, in the worktree (the pack refreshed
      at Start), never by hand (a hand-built brief once carried
@@ -389,7 +398,10 @@ below names one of them.
 - **F7. UI push** (the push carries interface changes in a repository with a
   user interface). The person works
   on several projects at once and will not remember where this one stood.
-  **Never ask for an approval without a guide.**
+  **Never ask for an approval without a guide.** A programme ticket agent
+  has no person to ask: its UI change takes the step 0 path, and with
+  no `evidence:` preview, the ticket is held (the driver lists it in its
+  summary).
   0. **Planned evidence**.
      If the plan approved through ExitPlanMode has, in its body, a
      `## Preview` section whose first non-empty line starts with
