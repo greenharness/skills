@@ -114,7 +114,7 @@ evidence". Tally its cause in step 4 even when you drop it.
 A fix names its target: the cause's count, its denominator and the week
 (`harness.change-targets-a-counted-cause`). When no count exists, the fix
 ships its count first. A cause with fewer than 5 events in 28 days is not a
-target: count it longer, or propose no fix for it yet.
+target: its candidate reads `Fix: none yet; under 5 events in 28 days`.
 
 ## 4. Report
 
@@ -138,7 +138,9 @@ The Target line takes its numbers from the cause's own count:
   directory;
 - a greenbelay rule: `greenbelay status` (firings per 1,000 calls);
 - an agent-behaviour cause: the tally below, as `<sessions with the cause>/
-  <sessions retro'd> sessions retro'd`;
+  <sessions retro'd> sessions retro'd`, with this recount (`<cause>` and
+  `<from>`, `<to>` as `YYYY-MM-DD`, the week's Monday and the next one):
+  `awk -F'\t' -v c=<cause> -v a=<from> -v b=<to> '$1>=a && $1<b {if($3=="__reviewed__")r[$2]=1; if($3==c)h[$2]=1} END{n=0;for(s in h)if(s in r)n++; m=0;for(s in r)m++; print n"/"m}' ~/.claude/retro/causes.tsv`;
 - no count at all: `Target: uncounted; count by: <how>`.
 
 Start the report with one line: `candidates: <N>`.
@@ -156,5 +158,6 @@ The tally counts sessions retro'd, not all sessions. It is the only file
 retro writes.
 
 Done when every candidate has evidence, one cause, one Target and exactly
-one fix, and the tally holds a `__reviewed__` line for each session read.
+one Fix line (a fix, or `none yet` under the 5-event floor), and the tally
+holds a `__reviewed__` line for each session read.
 Retro does not apply any fix.
