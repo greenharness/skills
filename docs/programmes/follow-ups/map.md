@@ -31,6 +31,8 @@ each goes in its repository's greenrack sweep.
   mentions written by hand. Nothing changed in the three repositories.
 - Next: [t01](t01-verify-skill-pilot-measure.md), due 2026-12-19. No
   ticket is ready before then.
+- Filed 2026-11-22 from the inbox: [t05](t05-verify-launch-no-fixed-deadline.md),
+  ready.
 
 ## Not yet specified
 
