@@ -136,7 +136,16 @@ The Target line takes its numbers from the cause's own count:
 - a `relais:` cause: the cause query's row for the last complete week, and
   its recount command with an absolute or `~` path, so it runs from any
   directory;
-- a greenbelay rule: `greenbelay status` (firings per 1,000 calls);
+- a greenbelay rule: the replay's row for the last complete week, as
+  `<firings>/<calls> Bash calls`, with this recount (`<rule>`, and
+  `<from>`, the week's Monday as `YYYY-MM-DD`):
+  `greenbelay backtest --rule <rule> --since <from> --json | jq -r '.version as $v | .rules[] | select(.replay=="exact") | .id as $r | .weeks[] | select(.week=="<from>") | "\(.week) \($r) \(.fires) \(.calls) \(.per_1000) v\($v)"'`.
+  It prints `week rule firings calls rate version`. When it prints
+  nothing, the replay cannot count that rule (its `replay` is `none`: it
+  fires on another tool, only the live session decides, or the hook checks
+  the world at the time), or this greenbelay is older than the label:
+  write `Target: uncounted; count by: no weekly source for <rule>
+  (greenbelay's journal keeps about two days)`;
 - an agent-behaviour cause: the tally below, as `<sessions with the cause>/
   <sessions retro'd> sessions retro'd`, with this recount (`<cause>` and
   `<from>`, `<to>` as `YYYY-MM-DD`, the week's Monday and the next one):
