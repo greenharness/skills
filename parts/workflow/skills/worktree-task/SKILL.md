@@ -113,7 +113,7 @@ The approved plan is the branch's FIRST commit, before any code.
 1. **Which plan.** The path this session's ExitPlanMode result gave. If this
    session approved no plan, ask the person for the path. Never pick the
    newest file in `~/.claude/plans/` — with parallel sessions, mtime is not
-   task identity. **programme-run case** (ADR-0080): a ticket agent started
+   task identity. **programme-run case**: a ticket agent started
    by a programme driver calls no ExitPlanMode and asks nothing. Its plan is
    the file it wrote and ran the `plan-review` skill on, in its own
    transcript; the person's approval of the programme is the approval. That
