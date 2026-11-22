@@ -11,4 +11,4 @@ Part of [Approved programmes run without the person](https://github.com/frederic
 
 ## Implementation review
 
-- approve-with-changes, then delta approve; fixed: the ticket plan file at step 1 and F7 step 0, a held ticket on any step 0 ask; 36k + 44k, 45 s + 41 s.
+- approve-with-changes, then delta approve twice; fixed: the ticket plan file at step 1 and F7 step 0, a held ticket on any step 0 ask, and a private ADR number CI's `check.sh` refuses in the published bundle; 36k + 44k + 46k.
