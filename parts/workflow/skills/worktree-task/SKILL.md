@@ -644,10 +644,18 @@ At each of these boundaries:
    (Land the plan, step 6);
 2. the PR has merged and the worktree is torn down (F10 step 5);
 3. a programme ticket is closed and its PR merged;
-4. a release is verified and swept (`tag-release`).
+4. a release is verified and swept (`tag-release`);
+5. a **size boundary**: the context is past about 400k mid-phase, when a
+   hook or the person says so. Follow
+   [Steps at a size boundary](#steps-at-a-size-boundary-mid-phase), not
+   the Steps below.
 
 Only when nothing of **this session** is in flight. Other sessions'
-worktrees and runs do not count. All of these hold:
+worktrees and runs do not count. At a size boundary only the second and
+third items hold: its task worktree, with its uncommitted edits, unpushed
+commits and open PR, is the state the handoff names. A PR whose checks
+are still being polled is a poll, so it blocks. At the other boundaries,
+all of these hold:
 
 - its worktrees have no uncommitted or unpushed work (at boundary 1, the
   plan commit may be unpushed);
@@ -741,6 +749,56 @@ If anything is in flight, say what it is and print no handoff line.
    - A clear-relay plugin, when installed, clears and submits the prompt
      after a countdown the person can stop. Without it, the person types
      `/clear` and pastes the prompt.
+
+### Steps at a size boundary (mid-phase)
+
+The phase is not done: the handoff carries the step underway and what the
+session learned, so the next session continues it rather than starting
+over.
+
+1. **File no inbox.** Its lines wait for the next boundary that is not a
+   size boundary.
+2. **Keep uncommitted edits as they are.** Make no WIP commit: half-done
+   code would go through the pre-commit gates. The task worktree survives a
+   `/clear`; the handoff lists the edits.
+3. **Write the handoff** into the repository, never into memory:
+   - **In a programme:** the ticket's own `## Handoff` section, in the
+     ticket file on its `prog/<slug>/<id>` branch. Never the map's shared
+     section: tickets run in parallel, and one shared section would be
+     overwritten and conflict at merge.
+   - **Otherwise:** a `## Handoff` section in the plan, replaced each time.
+
+   Its first line is `<date> mid-phase at <N>k` (`<N>` the context size in
+   thousands of tokens). Then:
+   - the phase and the step underway;
+   - what this phase has committed;
+   - the uncommitted files and the state of each;
+   - what was learned: facts found, dead ends;
+   - the next action, exact enough to start without rereading the
+     session.
+4. **Commit it alone** in the task worktree, staging only that file by its
+   path: `docs(plan): handoff <phase>`. Leave it unpushed. Touch no other
+   file until the commit returns: a pre-commit gate may set unstaged edits
+   aside while it runs.
+5. **End the answer with the line**, as its last non-empty line. When the
+   notice that asked for the handoff asks for an opening line for the
+   person, write that line first. Run no `relais programme next --claim`:
+   it picks the next unheld ticket, not this one. The prompt starts with
+   the phase and the gist, since the countdown shows only its first 30
+   characters:
+   - **Outside a programme:**
+     ``safe to /clear; next: `resume <phase>: <gist>; worktree <abs worktree>, plan <plan file>; read its ## Handoff` ``
+   - **In a programme:**
+     ``safe to /clear; next: `resume <repo> <programme> <ticket>: mid-phase, <gist>` ``
+
+     The ticket stays held by its `prog/<slug>/<id>` branch, local or
+     pushed, across the clear; the resumed session finds its worktree from
+     that branch (`git worktree list`) and refreshes the claim.
+
+The resumed session reads the `## Handoff`, checks that `git status` in the
+worktree shows the files it lists, and continues from its next action.
+When they differ, it stops and reports the mismatch before editing, rather
+than redoing work the handoff names as done.
 
 ## Cleanup (abandon)
 
