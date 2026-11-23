@@ -69,6 +69,7 @@ Board checked: no overlapping work in the three repos. One worktree + PR per rep
 
 ## Verification
 - greenharness-skills: `scripts/check.sh`; `python3 -I -m unittest discover -s tests`; with one reviewer's `preferred-model:` line removed, `test_agent_model_fallback.py` fails naming that file (expected 1 failure).
+  - Observed (phase 1): 20 reviewer definitions carry `preferred-model: opus`, `browser-check` none → suite OK (140 tests), `scripts/check.sh` exit 0; `code-review-tui` key removed → 1 failure `test_every_reviewer_declares_opus` naming `code-review-tui.md`. No CHANGELOG in this repo. `--record-fallback` discoverability is greenbelay's `tests/plan_apply.rs` (phase 2).
 - greenbelay: `cargo test` (rule unit tests: inherit+pref+no model → fires; explicit model → passes; marker → passes; pinned definition → passes; missing definition → passes; `relais:relais-reviewer-opus-high` → passes; `Task` alias); `tests/hook.rs` end-to-end on a PreToolUse Agent payload of the real shape (`subagent_type`, `model`, `prompt`, `description`), and the same payload with `tool_name: "Task"` → denied; corpus cases; the backtester sees only Bash (`relais_run_forks.rs`), so instead the pure `judge` runs over the last 14 days of transcripts' `Agent`/`Task` inputs, reported as a count: fires / reviewer launches without `model`, expected equal and 0 on any other agent type.
 - relais: `cargo test -p relais --lib install::`.
 - Live, after the three installs, in this session: an `Agent` call to `implementation-review` with no `model` is denied with the message, and a relaunch built only from that message's text runs; the same call with `model: "opus"` runs; a call with the `model-fallback:` first line and no `model` runs; an `Agent` call to `relais-review` with no `model` is denied the same way, and with `model: "opus"` it runs on Opus.
@@ -81,5 +82,9 @@ Board checked: no overlapping work in the three repos. One worktree + PR per rep
 
 ## Non-goals
 No auto-injection of `model` through `updatedInput` (the deny keeps the launch's model visible in the agent's own record, which `agent-model-fallback` reports, and greenbelay has no input-rewrite path); no change to `browser-check`, the plan-apply helper, the relais runner's pinned reviewer agents, or relais model tiers; no Codex placement change.
+
+## Implementation review
+- Phase 1 (greenharness-skills) implementation-review: approve-with-changes → delta approve; 3 fixed (test scope, step 4 wording, all non-reviewers checked); 47k+34k, 46+112 s.
+- Phase 1 lang:python: approve-with-changes → delta approve; 4 fixed (helpers, utf-8, messages); 1 low left (anchor assertIn); 35k+23k, 33+29 s.
 
 <!-- panel: repos=greenharness-skills,greenbelay,relais adds= reviewers=architect,backend,language,po,tui,unix,codex body-sha=f4566d37a9d6 -->
