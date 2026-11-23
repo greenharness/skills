@@ -797,6 +797,8 @@ over.
 
 The resumed session reads the `## Handoff`, checks that `git status` in the
 worktree shows the files it lists, and continues from its next action.
+When they differ, it stops and reports the mismatch before editing, rather
+than redoing work the handoff names as done.
 
 ## Cleanup (abandon)
 
