@@ -13,7 +13,9 @@ A named agent (a reviewer, an applier) has a **preferred model** and a
 
 1. Every first-party agent definition says `model: inherit`. An agent with
    a pinned `model:` cannot fall back: omitting the override would still
-   run the pinned model.
+   run the pinned model. A reviewer's definition also declares its
+   preference beside it, `preferred-model: opus`, so a launch from
+   anywhere can be held to it.
 2. The launcher passes the preferred model on the first attempt as the
    `model` parameter of `Agent`. Preferred model of every first-party
    reviewer: `opus`. Of the plan-apply helper: `sonnet`. Of `browser-check`: `haiku`.
@@ -23,8 +25,22 @@ A named agent (a reviewer, an applier) has a **preferred model** and a
    the root session model, including a custom provider id that the
    parameter cannot name.
 4. Keep the prompt, the review block, the language or profile line and the
-   tree or plan sha exactly as in the first launch. A generic or fork agent
+   tree or plan sha exactly as in the first launch, apart from the step 5
+   marker line. A generic or fork agent
    is never a substitute: the hook counts the named role.
+5. **The marker.** When the agent's definition declares `preferred-model`,
+   the launch without `model` (step 3, or a seat launched straight on the
+   fallback under a cooldown) starts its prompt with one line, then the
+   first launch's prompt unchanged:
+
+   ```
+   model-fallback: <preferred> -> root (<cooldown|unavailable>)
+   ```
+
+   A guard that holds launches to their declared preference lets a launch
+   carrying this line through. Any other agent (the plan-apply helper,
+   `browser-check`) keeps its whole prompt unchanged: the plan-apply
+   helper's prompt must still start with its `<<<APPLY …>>>` block.
 
 ```sh
 python3 -I ~/.claude/skills/agent-model-fallback/fallback.py decide \

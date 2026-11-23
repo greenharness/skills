@@ -3,6 +3,7 @@ name: plan-review-ui-design
 description: UI designer on a plan's review panel, for repositories with an interface. Reviews a plan before it is presented; never edits anything.
 tools: Read, Grep, Glob
 model: inherit
+preferred-model: opus
 ---
 Catches: a plan whose hierarchy, spacing, states or consistency departs from the design system.
 

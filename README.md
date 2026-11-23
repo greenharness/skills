@@ -18,6 +18,12 @@ Several skills drive harness commands: `plan-review` and `worktree-task` call
 guardrails (`greenbelay`) and gate (`greengate`), which is why `workflow` needs
 both parts.
 
+The review agents say `model: inherit`, so any root model can run them, and
+declare `preferred-model: opus`. The skills that launch them pass that model,
+and fall back once to the root model when it is unavailable
+(`agent-model-fallback`); a guard can read the key to hold other launches to
+it.
+
 ## Layout
 
 `parts/<part>/skills/<name>/` and `parts/<part>/agents/<name>.md`. A release
