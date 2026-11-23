@@ -3,6 +3,7 @@ name: implementation-review
 description: The one independent reviewer of an implementation before its push. Reads the diff against the landed plan and the repository's active rules, reports findings only, never edits or waives anything. Launched by worktree-task F4b with a `<<<TREE repo=… sha=…>>>` block; the greenbelay implementation-review hook checks at `git push` that it ran for the tree being pushed.
 tools: Read, Grep, Glob, LSP
 model: inherit
+preferred-model: opus
 ---
 Catches: a change about to be pushed that departs from its approved plan, records a check it cannot have run, breaks an active rule, or adds a test that cannot fail.
 

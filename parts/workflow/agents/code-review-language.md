@@ -3,6 +3,7 @@ name: code-review-language
 description: Language expert code-review profile, launched at worktree-task F4b beside implementation-review when a plan's `## Code review` section declares `lang:<x>`. Reads the committed diff through that expertise; reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
 model: inherit
+preferred-model: opus
 ---
 Catches: code that is not idiomatic in its language, loses type safety, or misuses the language's error, ownership or async model.
 

@@ -28,6 +28,11 @@ def pinned_models(head):
     return re.findall(r"^model:\s*(\S+)\s*$", head, re.M)
 
 
+def preferred_models(head):
+    """The `preferred-model:` values a definition's frontmatter declares."""
+    return re.findall(r"^preferred-model:\s*(\S+)\s*$", head, re.M)
+
+
 class AgentDefinitions(unittest.TestCase):
     def test_no_agent_pins_a_model(self):
         # Omitting the override is a fallback only when the definition inherits.
@@ -35,6 +40,21 @@ class AgentDefinitions(unittest.TestCase):
         self.assertTrue(files)
         for f in files:
             self.assertEqual(pinned_models(f.read_text().split("---")[1]), ["inherit"], f.name)
+
+    def test_every_reviewer_declares_opus(self):
+        # A guard reads this key to hold launches outside the skills to it.
+        reviewers = sorted(
+            f for f in AGENTS.glob("*.md")
+            if f.name.startswith(("plan-review-", "code-review-"))
+            or f.stem in ("implementation-review", "interface-review")
+        )
+        self.assertEqual(len(reviewers), 20)
+        for f in reviewers:
+            self.assertEqual(preferred_models(f.read_text().split("---")[1]), ["opus"], f.name)
+
+    def test_only_reviewers_declare_a_preference(self):
+        for name in ("browser-check",):
+            self.assertEqual(preferred_models((AGENTS / f"{name}.md").read_text().split("---")[1]), [])
 
     def test_pinned_definition_is_caught(self):
         self.assertEqual(pinned_models("name: x\nmodel: opus\n"), ["opus"])
@@ -51,6 +71,18 @@ class Launchers(unittest.TestCase):
     def test_plan_review_rule_precedes_the_first_launch(self):
         text = (SKILLS / "plan-review/SKILL.md").read_text()
         self.assertLess(text.index('model: "opus"'), text.index("## 3. Round 1"))
+
+    def test_marker_is_only_for_declared_preferences(self):
+        text = (SKILLS / "agent-model-fallback/SKILL.md").read_text()
+        self.assertIn("model-fallback: <preferred> -> root (<cooldown|unavailable>)", text)
+        # The plan-apply helper's fallback is found by its leading block.
+        self.assertIn("must still start with its `<<<APPLY …>>>` block", text)
+
+    def test_plan_apply_fallback_stays_unmarked(self):
+        # plan-review relaunches the helper with the same prompt: no marker
+        # may be placed before its <<<APPLY block.
+        text = (SKILLS / "plan-review/SKILL.md").read_text()
+        self.assertNotIn("model-fallback:", text)
 
     def test_policy_skill_is_not_model_invocable(self):
         text = (SKILLS / "agent-model-fallback/SKILL.md").read_text()

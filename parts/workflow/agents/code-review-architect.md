@@ -3,6 +3,7 @@ name: code-review-architect
 description: Software architect code-review profile, launched at worktree-task F4b beside implementation-review when a plan's `## Code review` section declares `architect`. Reads the committed diff through that expertise; reports findings only, never edits.
 tools: Read, Grep, Glob, LSP
 model: inherit
+preferred-model: opus
 ---
 Catches: a change that bends the system's boundaries: dependencies pointing the wrong way, modules coupled through internals, or data shapes leaking across layers.
 
