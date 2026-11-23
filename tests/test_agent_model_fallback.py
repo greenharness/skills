@@ -28,6 +28,20 @@ def pinned_models(head):
     return re.findall(r"^model:\s*(\S+)\s*$", head, re.M)
 
 
+def frontmatter(path):
+    """The text between a definition's first two `---` fences."""
+    return path.read_text(encoding="utf-8").split("---", 2)[1]
+
+
+def reviewer_files():
+    """The review agents, which declare a preferred model."""
+    return sorted(
+        f for f in AGENTS.glob("*.md")
+        if f.name.startswith(("plan-review-", "code-review-"))
+        or f.stem in ("implementation-review", "interface-review")
+    )
+
+
 def preferred_models(head):
     """The `preferred-model:` values a definition's frontmatter declares."""
     return re.findall(r"^preferred-model:\s*(\S+)\s*$", head, re.M)
@@ -39,22 +53,20 @@ class AgentDefinitions(unittest.TestCase):
         files = sorted(AGENTS.glob("*.md"))
         self.assertTrue(files)
         for f in files:
-            self.assertEqual(pinned_models(f.read_text().split("---")[1]), ["inherit"], f.name)
+            self.assertEqual(pinned_models(frontmatter(f)), ["inherit"], f.name)
 
     def test_every_reviewer_declares_opus(self):
         # A guard reads this key to hold launches outside the skills to it.
-        reviewers = sorted(
-            f for f in AGENTS.glob("*.md")
-            if f.name.startswith(("plan-review-", "code-review-"))
-            or f.stem in ("implementation-review", "interface-review")
-        )
-        self.assertEqual(len(reviewers), 20)
+        reviewers = reviewer_files()
+        self.assertEqual(len(reviewers), 20, [f.name for f in reviewers])
         for f in reviewers:
-            self.assertEqual(preferred_models(f.read_text().split("---")[1]), ["opus"], f.name)
+            self.assertEqual(preferred_models(frontmatter(f)), ["opus"], f.name)
 
     def test_only_reviewers_declare_a_preference(self):
-        for name in ("browser-check",):
-            self.assertEqual(preferred_models((AGENTS / f"{name}.md").read_text().split("---")[1]), [])
+        others = sorted(set(AGENTS.glob("*.md")) - set(reviewer_files()))
+        self.assertTrue(others)
+        for f in others:
+            self.assertEqual(preferred_models(frontmatter(f)), [], f.name)
 
     def test_pinned_definition_is_caught(self):
         self.assertEqual(pinned_models("name: x\nmodel: opus\n"), ["opus"])
@@ -78,11 +90,15 @@ class Launchers(unittest.TestCase):
         # The plan-apply helper's fallback is found by its leading block.
         self.assertIn("must still start with its `<<<APPLY …>>>` block", text)
 
-    def test_plan_apply_fallback_stays_unmarked(self):
-        # plan-review relaunches the helper with the same prompt: no marker
-        # may be placed before its <<<APPLY block.
-        text = (SKILLS / "plan-review/SKILL.md").read_text()
-        self.assertNotIn("model-fallback:", text)
+    def test_plan_apply_relaunch_text_keeps_the_apply_block_first(self):
+        # Checks the skill text only: the helper's prompt starts with its
+        # <<<APPLY block, and its relaunch paragraph adds no marker before it.
+        # That `--record-fallback` still finds such a launch is tested where
+        # it is implemented (greenbelay's plan-apply).
+        text = (SKILLS / "plan-review/SKILL.md").read_text(encoding="utf-8")
+        start = text.index("Its prompt starts with the `<<<APPLY")
+        relaunch = text[start:text.index("--record-fallback", start)]
+        self.assertNotIn("model-fallback:", relaunch)
 
     def test_policy_skill_is_not_model_invocable(self):
         text = (SKILLS / "agent-model-fallback/SKILL.md").read_text()

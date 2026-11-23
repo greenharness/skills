@@ -25,7 +25,8 @@ A named agent (a reviewer, an applier) has a **preferred model** and a
    the root session model, including a custom provider id that the
    parameter cannot name.
 4. Keep the prompt, the review block, the language or profile line and the
-   tree or plan sha exactly as in the first launch. A generic or fork agent
+   tree or plan sha exactly as in the first launch, apart from the step 5
+   marker line. A generic or fork agent
    is never a substitute: the hook counts the named role.
 5. **The marker.** When the agent's definition declares `preferred-model`,
    the launch without `model` (step 3, or a seat launched straight on the
