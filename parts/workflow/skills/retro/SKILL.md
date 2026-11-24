@@ -143,9 +143,16 @@ The Target line takes its numbers from the cause's own count:
   It prints `week rule firings calls rate version`. When it prints
   nothing, the replay cannot count that rule (its `replay` is `none`: it
   fires on another tool, only the live session decides, or the hook checks
-  the world at the time), or this greenbelay is older than the label:
-  write `Target: uncounted; count by: no weekly source for <rule>
-  (greenbelay's journal keeps about two days)`;
+  the world at the time), or this greenbelay is older than the label. Then
+  try the roll-up, with the same `<rule>` and `<from>`:
+  `greenbelay rollup --json | jq -r '.weeks[] | select(.week=="<from>" and (.partial|not)) | .week as $w | .rules[] | select(.rule=="<rule>" and .calls!=null and .calls>0) | "\($w) \(.rule) \(.firings) \(.calls) \(.rate) \(.tool)"'`.
+  It prints `week rule firings calls rate tool`: the Target reads
+  `<firings>/<calls> <tool> calls, week of <Monday>`, a tool of `any` reads
+  `tool calls`, and this command is its `recount:`.
+  When that prints nothing too (no closed week yet, a rule with no tool, or
+  a greenbelay older than the roll-up), write `Target: uncounted; count by:
+  no roll-up row for <rule> (no closed week, no tool, or an older
+  greenbelay)`;
 - an agent-behaviour cause: the tally below, as `<sessions with the cause>/
   <sessions retro'd> sessions retro'd`, with this recount (`<cause>` and
   `<from>`, `<to>` as `YYYY-MM-DD`, the week's Monday and the next one):
