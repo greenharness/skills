@@ -147,7 +147,8 @@ The Target line takes its numbers from the cause's own count:
   try the roll-up, with the same `<rule>` and `<from>`:
   `greenbelay rollup --json | jq -r '.weeks[] | select(.week=="<from>" and (.partial|not)) | .week as $w | .rules[] | select(.rule=="<rule>" and .calls!=null and .calls>0) | "\($w) \(.rule) \(.firings) \(.calls) \(.rate) \(.tool)"'`.
   It prints `week rule firings calls rate tool`: the Target reads
-  `<firings>/<calls> <tool> calls`, and a tool of `any` reads `tool calls`.
+  `<firings>/<calls> <tool> calls, week of <Monday>`, a tool of `any` reads
+  `tool calls`, and this command is its `recount:`.
   When that prints nothing too (no closed week yet, a rule with no tool, or
   a greenbelay older than the roll-up), write `Target: uncounted; count by:
   no roll-up row for <rule> (no closed week, no tool, or an older
