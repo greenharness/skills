@@ -1,7 +1,7 @@
 ---
 canonical: blue-factory:docs/programmes/blue-factory/t34-build-greenbelay-firing-rollup.md
 phases: [1]
-status: active
+status: done
 branch: feat/retro-rollup-target
 repos: [greenharness-skills]
 plan-id: p-01M86TN3VMCNH01B0011J62RSB
@@ -50,12 +50,12 @@ step 4 (lines ~139–148), only:
   `none`, or greenbelay is older than the label), try the roll-up before
   `uncounted`.
 - Roll-up recount (`<rule>`, `<from>` = the last complete week's Monday):
-  `greenbelay rollup --json | jq -r '.weeks[] | select(.week=="<from>" and (.partial|not)) | .week as $w | .rules[] | select(.rule=="<rule>" and .calls!=null) | "\($w) \(.rule) \(.firings) \(.calls) \(.rate) \(.tool)"'`
+  `greenbelay rollup --json | jq -r '.weeks[] | select(.week=="<from>" and (.partial|not)) | .week as $w | .rules[] | select(.rule=="<rule>" and .calls!=null and .calls>0) | "\($w) \(.rule) \(.firings) \(.calls) \(.rate) \(.tool)"'`
   Target reads `<firings>/<calls> <tool> calls, week of <Monday>` (tool from
   the row: `Bash`, `Read` …; `any` reads `tool calls`).
 - Still `uncounted` when the roll-up prints nothing: no closed week yet, the
   rule has no tool (`calls` null: a hook on another event), or greenbelay is
-  older than the roll-up (the skill text carries no date and no version). Reason text: `no closed roll-up week for <rule>`.
+  older than the roll-up (the skill text carries no date and no version). Reason text (as shipped, per the panel's carried item): `no roll-up row for <rule> (no closed week, no tool, or an older greenbelay)`.
 - The skill works with the tool absent: it names no version beyond
   "older than the roll-up".
 
@@ -65,10 +65,15 @@ step 4 (lines ~139–148), only:
 
 ## Verification
 
-- `scripts/check.sh` → exit 0; `python3 -I -m unittest discover -s tests` → OK.
-- Pipe the fixture `{"weeks":[{"week":"2026-11-23","partial":false,"rules":[{"rule":"<rule>","firings":3,"calls":412,"rate":7.28,"tool":"Bash"}]}]}` through the new jq with `<from>`=2026-11-23: expect exactly `2026-11-23 <rule> 3 412 7.28 Bash` (no `null`). Run it on the live roll-up: today every week is
-  partial, so it prints nothing and the `uncounted` branch is what holds.
+- `scripts/check.sh` → expected exit 0 → actual rc 0; `python3 -I -m unittest discover -s tests` → expected OK → actual 140 tests OK.
+- Fixture jq (calls 412, `<from>`=2026-11-23) → expected `2026-11-23 r 3 412 7.28 Bash` → actual that line; a `calls: 0` row → expected no row → actual none.
+- Live `greenbelay rollup --json` (6.12.0), same jq shape → keys match: `2026-11-23 pipe-to-tail 56 9041 6.2 Bash`. Week 2026-11-23 is still partial today, so the closed-week filter prints nothing and the `uncounted` branch is what holds.
 - The ticket stays open until a real retro Target line shows a roll-up
   count (first closed week 2026-11-23, readable from 2026-11-30).
+
+## Implementation review
+
+- Round 1, implementation-review (opus): approve-with-changes; reason text deliberate (panel's carried item), week and recount fixed in 2e82e8b, actuals recorded here. 27k, 40 s.
+- Delta (opus): approve; sync the plan's jq and record actuals, both done here. 25k, 16 s.
 
 <!-- panel: repos=greenharness-skills adds= reviewers=backend body-sha=0354404374ba -->
