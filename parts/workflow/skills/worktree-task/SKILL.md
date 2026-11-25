@@ -728,18 +728,25 @@ If anything is in flight, say what it is and print no handoff line.
    - **In a programme it names one ticket that no other session holds.**
      Run
      `relais programme next --from <repo>:<programme> --claim`. It chooses
-     the first unheld ready ticket of this programme, else one of a
-     programme no session is on, and reserves it for the next session.
+     the first unheld ready ticket of this programme only, never one of
+     another programme, and reserves it for the next session.
      - Exit 0: its stdout is `<repo> <programme> <ticket>` then a tab and the
        ticket's name. The prompt is
        `resume <repo> <programme> <ticket>: <gist>`, and nothing open-ended,
        so the whole line reads
        ``safe to /clear; next: `resume <repo> <programme> <ticket>: <gist>` ``.
-     - Exit 22: nothing is left for an agent. `next` printed one `parked: …`
-       line on stdout (`parked: next due <date>` or `parked: nothing due`).
-       End with `safe to /clear; ` followed by that line, for example
-       `safe to /clear; parked: next due 2026-11-24`, instead of a `next:`
-       line. The relay submits nothing on it.
+     - Exit 22: nothing is left for an agent in this programme. `next`
+       printed a `parked: …` line first on stdout (`parked: next due <date>`
+       or `parked: nothing due`). End with `safe to /clear; ` followed by
+       that line, for example `safe to /clear; parked: next due 2026-11-24`,
+       instead of a `next:` line. The relay submits nothing on it. When it
+       also printed `ready elsewhere: <repo>:<slug> (<n> ready)` lines, name
+       those programmes for the person just above the parked line and start
+       none of them: starting another programme is the person's call.
+     - Exit 1 with `stayed held for` on stderr: the programme's lock was
+       busy. Run the `next:` command it printed once more; if it is still
+       busy, write that command for the person and end with
+       `safe to /clear; parked: lock busy`.
      - Any other exit: say relais's stderr line, print no clear line, and
        never fall back to an open-ended prompt.
      - Without relais: name the map's own next ticket, or park. Never name
