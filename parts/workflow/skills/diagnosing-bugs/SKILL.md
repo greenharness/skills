@@ -10,8 +10,8 @@ Skip a phase only when you say why.
 
 Adapted from mattpocock/skills (see [NOTICE.md](NOTICE.md)).
 
-Before you start: run `aval_relevant` on the paths involved, then
-`aval_resolve` each key it returns. A `contradiction` stops the work: say
+Before you start: run `greentopo_relevant` on the paths involved, then
+`greentopo_resolve` each key it returns. A `contradiction` stops the work: say
 so. A decision tells you what the code is meant to do.
 
 ## Redact

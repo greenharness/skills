@@ -11,7 +11,7 @@ Orchestration is all it owns. Accessibility rules belong to `accessibility`, str
 
 Change-scoped review of uncommitted work, branches and pull requests belongs to `interface-review`.
 
-A decision of this repository (resolved with `aval resolve <key>`, which answers at the repository's declared `in_scopes`; no hand-typed `--scope`) outranks a value in this skill. Apply token requirements and gap routing only where the repository's decisions require them, keeping their named exemptions. On a stack whose decisions require tokens, a non-exempt measure without a token is a design-system gap, never a local literal.
+A decision of this repository (resolved with `greentopo resolve <key>`, which answers at the repository's declared `in_scopes`; no hand-typed `--scope`) outranks a value in this skill. Apply token requirements and gap routing only where the repository's decisions require them, keeping their named exemptions. On a stack whose decisions require tokens, a non-exempt measure without a token is a design-system gap, never a local literal.
 
 ## Evidence, not taste
 
@@ -41,7 +41,7 @@ Identify the framework, styling system, component library, design tokens, suppor
 
 Then read what the project has written about its own interface: `CONTRIBUTING.md`, `CODING_STANDARDS.md`, `AGENTS.md`, `CLAUDE.md`, a design-system doc, Storybook docs and interface ADRs. Name which you found, or that there are none.
 
-A documented convention settles matters of taste but never excuses a trigger or a domain rule violation, unless an applicable repository decision (resolved with `aval resolve`) settles it. What it changes is **where** you report. When a guideline or shared token is the cause, report it once against that source, with the components as its locations.
+A documented convention settles matters of taste but never excuses a trigger or a domain rule violation, unless an applicable repository decision (resolved with `greentopo resolve`) settles it. What it changes is **where** you report. When a guideline or shared token is the cause, report it once against that source, with the components as its locations.
 
 ### 4. Use domain skills as the sources of truth
 
