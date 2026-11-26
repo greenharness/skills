@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 plan-id: p-01M8CP6S552TRP639ZKT1NTVF5
 branch: docs/handoff-stops-leftovers
 repos: [skills]
@@ -106,7 +106,7 @@ boundary`, before its step 5: the same sweep, where the task worktree's own edit
 
 ## Phases
 
-- [ ] Phase 1: the Handoff step and its pointers, then the release.
+- [x] Phase 1: the Handoff step and its pointers, then the release.
   - Files: `parts/workflow/skills/worktree-task/SKILL.md`,
     `parts/gate/skills/merge-when-green/SKILL.md`, `parts/gate/skills/tag-release/SKILL.md`.
   - After the merge: tag the skills `v0.24.0` (the repository releases by tag alone, the
@@ -158,9 +158,26 @@ boundary`, before its step 5: the same sweep, where the task worktree's own edit
   Phase 1 open on purpose, since its tag and install come after the merge.
 - Delta: approve (opus, 26k, 21 s): all round-1 findings resolved, nothing new.
 
-## Next
+## Verification results (after the release)
 
-Merge the PR, tag `v0.24.0` (the `tag-release` skill), run `grh install workflow gate`, then the two
-pilots and the installed-file grep; tick Phase 1 and set `status: done` with their results.
+- Released: skills v0.24.0 (tag at bbfdf0b, Release workflow success, assets
+  `greenharness-skills-0.24.0.tar.gz` and `SHA256SUMS`). grh pinned 0.22.0, so `grh install` placed
+  nothing new. That took grh 0.16.1 (greenharness/grh#67, pin skills 0.24.0), then
+  `brew upgrade grh` and `grh install workflow greengate --yes` (the `gate` part is now `greengate`).
+- Installed-file grep → `~/.claude/skills/worktree-task/SKILL.md:674` (Steps, step 0) and `:817`
+  (size boundary, step 5); `whose result is no longer` → 1 match each in the installed
+  merge-when-green and tag-release.
+- Stop pilot, run in the session that built this: a background `sleep 600` (`bw6zeck9r`) that
+  nothing needed was stopped at the handoff ("Successfully stopped task: bw6zeck9r (sleep 600)").
+  A `TaskStop` on an agent id that had already finished answered `No task found` and named no live
+  agents, as step 0 says. Its answer printed `stopped:` before the clear line.
+- Not run: the hold pilot, and the next session's missing "didn't finish" notice. Both are in the
+  7-day count, filed as a follow-up in greenbelay's inbox (due 2026-12-03) along with the Stop-hook
+  backstop.
+
+## Outcome
+
+Done. Every boundary Handoff now stops the session's own leftover tasks before the clear line.
+The 7-day count (2026-12-03) tells whether the Stop-hook backstop is needed.
 
 <!-- panel: repos=skills reviewers=backend body-sha=162c037a9106 -->
