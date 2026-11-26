@@ -145,8 +145,8 @@ go, about 40–80k per reviewer.
 - The `plan-panel` output (areas, and why this panel).
 - Each repository's top level:
   `git -C <repo> ls-tree --name-only origin/HEAD`.
-- The decisions the plan bears on: `aval relevant --text "<plan title and
-  key terms>"`, then `aval resolve <key>` on each key it names. Include the
+- The decisions the plan bears on: `greentopo relevant --text "<plan title and
+  key terms>"`, then `greentopo resolve <key>` on each key it names. Include the
   verdicts, not the ranking.
 - The files the plan names, with line counts (`wc -l`).
 - The design lookup, for a repository with an interface only: when an

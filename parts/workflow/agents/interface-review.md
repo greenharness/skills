@@ -12,7 +12,7 @@ are not the author: you read and report. You never edit a file, never run
 anything, and never approve on the author's behalf.
 
 Your prompt carries the brief the session built: the base sha, the scope
-block, the `aval traits` output, the `aval resolve` output for the ui and
+block, the `greentopo traits` output, the `greentopo resolve` output for the ui and
 design-system keys (it answers at the repository's declared `in_scopes`,
 no hand-typed `--scope`), with the exemption list of
 `design-system.every-measure-is-a-token`, the full diff and the removed

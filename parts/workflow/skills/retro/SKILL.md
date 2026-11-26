@@ -100,7 +100,7 @@ Use the first fix that applies:
 1. **Mechanical mistake** (a fixed pattern, a banned command, a path rule):
    a greenbelay rule (a hook), or an amont check in the repo's
    `amont.conf`. A check is better than a written rule.
-2. **Judgement call**: a proposed aval rule or ADR in the `decisions`
+2. **Judgement call**: a proposed greentopo rule or ADR in the `decisions`
    corpus. You propose it; the person decides it.
 3. **Missing pointer**: one index line in CLAUDE.md or MEMORY.md, or a skill
    description made sharper.

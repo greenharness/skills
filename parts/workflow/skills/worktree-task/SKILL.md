@@ -95,13 +95,13 @@ and none knew the `work.*` rules. The refresh rides this branch
 (`guidance.generated-block-rides-the-change`), never a fleet sweep:
 
 ```bash
-aval add --check --quiet --budget 20; rc=$?
+greentopo add --check --quiet --budget 20; rc=$?
 ```
 
 Branch on `rc` (zsh: `status` is read-only, never use it as a name):
 
-- `1` (behind, or edited): `aval add <the pack's source>` (the source `.adr.yaml` names), read
-  the diff, `aval heads --write` where the repository has its own corpus,
+- `1` (behind, or edited): `greentopo add <the pack's source>` (the source `.adr.yaml` names), read
+  the diff, `greentopo heads --write` where the repository has its own corpus,
   and commit `chore(adr): refresh the fleet pack` — before the plan commit;
 - `0` (current, or unknown because GitHub was unreachable): continue;
 - `2` or `3`: one line to the person, never a blocker.
@@ -246,9 +246,9 @@ below names one of them.
      It prints, in order:
      - the `<<<TREE repo=… sha=…>>>` block (the same as `tree-sha --block`:
        `HEAD` without `docs/plans/`) and a `<<<RULES sha=…>>>` line;
-     - the `<<<CANDIDATES sha=… n=…>>>` block (adr-lint 0.3.0 or
-       later): one line per candidate line the diff adds, ending
-       `<<<END CANDIDATES>>>`, or `<<<CANDIDATES unavailable>>>` when adr-lint
+     - the `<<<CANDIDATES sha=… n=…>>>` block (from greenspotter):
+       one line per candidate line the diff adds, ending
+       `<<<END CANDIDATES>>>`, or `<<<CANDIDATES unavailable>>>` when greenspotter
        could not run;
      - the plan's Verification section;
      - the diff stat, and the full diff under 60 KB;
@@ -263,15 +263,15 @@ below names one of them.
      For a pointer plan, pass the canonical plan's path. The merge-base is
      the remote's default branch; pass `--base <ref>` for a stacked branch.
      Exit 1 means the repository or its base could not be read: pass
-     `--base <ref>` (a stacked or local-only branch). Exit 3 means aval
-     failed and nothing was printed; fix aval, never hand-build the brief
+     `--base <ref>` (a stacked or local-only branch). Exit 3 means greentopo
+     failed and nothing was printed; fix greentopo, never hand-build the brief
      instead. A repository with no `.adr.yaml` has no decided code rules:
      the brief says so and carries no RULES line.
   2b. **Interface review** (advisory; skipped unless the diff touches the
-     repository's UI). Trigger: the `ui` areas from `aval traits`, matched
+     repository's UI). Trigger: the `ui` areas from `greentopo traits`, matched
      against `git diff --name-only <base>..HEAD`; no match, no step. Build
      one brief for the `interface-review` agent: the base sha, the scope
-     block, the `aval traits` output, the `aval resolve` output for the ui
+     block, the `greentopo traits` output, the `greentopo resolve` output for the ui
      and design-system keys (it answers at the repository's declared
      `in_scopes`; no hand-typed `--scope`), with the
      exemption list of `design-system.every-measure-is-a-token`, the full

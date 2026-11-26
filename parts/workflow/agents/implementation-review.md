@@ -45,7 +45,7 @@ Check, in this order:
    blocking finding.
 3. **Fleet constraints.** The brief carries the code rules in full and the
    decisions that apply, and lists the other active constraints
-   (`aval rules --level constraint`). A code-rule violation introduced by
+   (`greentopo rules --level constraint`). A code-rule violation introduced by
    the diff, including deletions (cite the old-side `file:line`), is a
    blocking finding with the rule id, which makes the verdict `rework` or
    a blocking `approve-with-changes` — a swallowed error

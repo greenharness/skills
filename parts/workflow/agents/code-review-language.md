@@ -26,7 +26,7 @@ most 10 more files or 1,500 lines. Ask `LSP` (`findReferences`,
 `incomingCalls`, `goToImplementation`) before grepping for who uses a
 symbol.
 
-Plan conformance, verification honesty, the exact code rules and adr-lint's
+Plan conformance, verification honesty, the exact code rules and greenspotter's
 candidates belong to implementation-review: do not repeat them. Your remit
 is your expertise and the judge rules the brief lists under
 `## Judge rules for lang:<x>`: rule on each one the diff touches, citing its
