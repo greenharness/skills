@@ -659,8 +659,8 @@ all of these hold:
 
 - its worktrees have no uncommitted or unpushed work (at boundary 1, the
   plan commit may be unpushed);
-- none of its background tasks, polls or relais runs is still running or
-  waiting on a decision;
+- after step 0's sweep, none of its background tasks, polls or relais runs
+  is still running or waiting on a decision;
 - no question to the person is unanswered;
 - no worktree it made is left to tear down (boundary 1's own excepted);
 - no PR of its own is open. A PR that F9 left waiting on a `merge-after:`
@@ -671,6 +671,33 @@ If anything is in flight, say what it is and print no handoff line.
 
 ### Steps
 
+0. **Stop what this session left running.** A `/clear` does not stop this
+   session's tasks: they run on with nothing watching them, and the next
+   session opens with "didn't finish before the previous session ended".
+   - List this session's own tasks from its transcript: each `Agent`
+     launch, each Bash call with `run_in_background`, each Monitor, whose
+     completion notification has not arrived, and each agent or teammate
+     that answered but may still be idle or waiting. Other sessions' tasks
+     are not yours.
+   - Decide each from what the session knows:
+     - its result is still needed (a land, a merge poll, a relais run, an
+       agent whose answer the handoff depends on): it is in flight. Say
+       what it is and print no clear line;
+     - it is not needed (superseded, a Monitor or poll whose answer
+       arrived, an agent that already answered, the dev server of a
+       finished preview): `TaskStop` it;
+     - a stop that fails, or a task it cannot judge: in flight, as above.
+   - A task that may hold uncommitted work in a worktree this session made
+     is in flight until that worktree is clean: a stop would cut the work
+     short.
+   - For a task judged not needed, when unsure whether its id is still
+     live, `TaskStop` it: an id that is gone answers `No task found`, which
+     is not a failure.
+   - Run the sweep again just before step 4: step 3 can start a merge poll
+     for a docs PR.
+   - One line in the answer, covering both sweeps, names what was stopped
+     (`stopped: <id> <what>, …`), or `stopped: none`. It comes before the
+     clear line, never after it.
 1. **File the inbox** of every repository this session touched. Skip a
    repository with no `inbox.md` and no leftover `.filing` file.
    - First take the inbox atomically, when `inbox.md` exists, in the same
@@ -787,7 +814,11 @@ over.
    path: `docs(plan): handoff <phase>`. Leave it unpushed. Touch no other
    file until the commit returns: a pre-commit gate may set unstaged edits
    aside while it runs.
-5. **End the answer with the line**, as its last non-empty line. When the
+5. **Stop what this session left running**, as in step 0 of the Steps
+   above, with one difference: the task worktree's own uncommitted edits
+   are expected here, so they hold nothing back; a task still writing to
+   them is in flight. One `stopped:` line, before the clear line.
+6. **End the answer with the line**, as its last non-empty line. When the
    notice that asked for the handoff asks for an opening line for the
    person, write that line first. Run no `relais programme next --claim`:
    it picks the next unheld ticket, not this one. The prompt starts with
