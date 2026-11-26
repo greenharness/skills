@@ -246,8 +246,8 @@ below names one of them.
      It prints, in order:
      - the `<<<TREE repo=… sha=…>>>` block (the same as `tree-sha --block`:
        `HEAD` without `docs/plans/`) and a `<<<RULES sha=…>>>` line;
-     - the `<<<CANDIDATES sha=… n=…>>>` block (greenspotter, or
-       later): one line per candidate line the diff adds, ending
+     - the `<<<CANDIDATES sha=… n=…>>>` block (from greenspotter):
+       one line per candidate line the diff adds, ending
        `<<<END CANDIDATES>>>`, or `<<<CANDIDATES unavailable>>>` when greenspotter
        could not run;
      - the plan's Verification section;
