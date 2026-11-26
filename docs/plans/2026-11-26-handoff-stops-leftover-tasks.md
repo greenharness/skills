@@ -134,4 +134,33 @@ boundary`, before its step 5: the same sweep, where the task worktree's own edit
   notification and no `TaskStop` are named, at advise first. This is the deterministic backstop
   for a model that skips step 0.
 
+## Verification results (before the push)
+
+- `grep -n 'Stop what this session left running'` on the branch's
+  `parts/workflow/skills/worktree-task/SKILL.md` → line 674 (`### Steps`, step 0) and line 817
+  (`### Steps at a size boundary`, step 5); the fallback clause `whose result is no longer needed`
+  → 1 match each in merge-when-green and tag-release.
+- `scripts/check.sh` → exit 0; `python3 -m unittest discover -s tests` → exit 0 (CI's own commands).
+- Not yet observed (after the merge, tag v0.24.0 and `grh install workflow gate`): the installed-file
+  grep, the stop pilot, the hold pilot, and the 7-day count. Those belong to the next action.
+
+## Decision log
+
+- 2026-11-26: the person chose "Handoff rule instead" over a clear-relay plugin check for agents.
+  The plugin plan had two full panel rounds and was dropped: no mod API lists background shells,
+  and the engine's own leftover reports are mostly shells.
+- 2026-11-26: deliberate: the Picture does not draw the second sweep before step 4 or the
+  size-boundary sweep. Redrawing it would change the reviewed body for a drawing alone.
+
+## Implementation review
+
+- approve-with-changes (opus, 36k tokens, 33 s): fixed the badly wrapped fallback paragraphs; kept
+  Phase 1 open on purpose, since its tag and install come after the merge.
+- Delta: approve (opus, 26k, 21 s): all round-1 findings resolved, nothing new.
+
+## Next
+
+Merge the PR, tag `v0.24.0` (the `tag-release` skill), run `grh install workflow gate`, then the two
+pilots and the installed-file grep; tick Phase 1 and set `status: done` with their results.
+
 <!-- panel: repos=skills reviewers=backend body-sha=162c037a9106 -->
