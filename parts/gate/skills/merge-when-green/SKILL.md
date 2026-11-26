@@ -85,9 +85,11 @@ Standing rule: **never use `gh pr merge --auto`** on a repository without branch
    one of a batch. Otherwise, when the `worktree-task` skill is installed,
    run its Handoff section: it checks that nothing of this session is in
    flight and ends the answer with ``safe to /clear; next: `<prompt>` ``.
-   Without it, write what comes next into the plan or programme map. Then,
-   only when nothing of this session is in flight (uncommitted or unpushed
-   work, an open PR, a background task or run, an unanswered question),
+   Without it, write what comes next into the plan or programme map, and
+   first `TaskStop` each task of this session whose result is no longer
+   needed: a `/clear` leaves them running. Then, only when nothing of this
+   session is in flight (uncommitted or unpushed work, an open PR, a
+   background task or run, an unanswered question),
    end with that line, last. The backticks around the prompt are part of
    the line: the clear-relay plugin arms on nothing else, and a bare prompt
    fails silently. The prompt itself is one line with no backtick inside it.
