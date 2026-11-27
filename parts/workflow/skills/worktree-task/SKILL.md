@@ -721,10 +721,17 @@ If anything is in flight, say what it is and print no handoff line.
      `## Look at` and `## Answer looks like`, and `due` from `due=`. It
      goes in the plan's programme map, or else in this repository's
      `docs/programmes/follow-ups/` (write its `map.md` on first use).
+   - Number the ticket after a fetch: `git fetch origin -q`, then take the
+     highest `<letters><digits>` id among the tickets on `origin/main` in
+     that directory, and add 1. Never number from the local tree: another
+     worktree may have taken the number. Skip a non-ticket directory such as
+     `f18-assets/`.
    - Append each line not filed back to `inbox.md`, one `>>` each, then
      delete your own take and the leftovers you read, nothing else.
-     `relais programme check <dir>`, when relais is
-     installed, exits 0.
+     `relais programme check --with-ref origin/main <dir>`, when relais is
+     installed, exits 0. On a refusal (`renumber to f<M>`), or the decisions
+     `follow-ups` warning at push, renumber the ticket and its references to
+     `f<M>` and push again.
 2. **Write the handoff** into the repository, never into memory or a file
    outside it.
    - **In a programme:** replace the map's `## Handoff` section (between
