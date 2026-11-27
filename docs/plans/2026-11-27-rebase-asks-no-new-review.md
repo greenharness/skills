@@ -1,5 +1,5 @@
 ---
-status: active
+status: done
 plan-id: p-01M8EAE319E0Q6DEDASTGR4FXX
 branch: docs/rebase-carries-review
 repos: [skills]
@@ -56,16 +56,18 @@ defect; the hook needs no change.
 
 After this change `worktree-task` tells the model, for a rebase after F4:
 
-1. **F1.** Record the head before the rebase (`old=$(git rev-parse HEAD)`) and,
-   after it, the review is not re-run by default. Whether the earlier pass
+1. **F1.** After a rebase the review is not re-run by default. Whether the earlier pass
    still holds is the hook's judgement at the push, not the model's: continue
    to F6 and let `amont land` / `git push` answer. A refusal that names the
    review is an expected answer, not a failed check, and sends the session
    back to F4b; a push that goes through (the
    hook journals `reviewed-by-patch` or `reviewed-by-patch-notes-moved`)
-   needed none.
+   needed none. (Shipped as: a push that goes through with one of those
+   words in the journal; a push that goes through under a warn or observe
+   stance proves nothing.)
 2. **F1, conflicts.** A conflict whose resolution only keeps both sides of
-   release notes (`CHANGELOG.md` and nothing else) usually changes no line the
+   release notes (the root `CHANGELOG.md`, which the branch already modifies,
+   and nothing else) usually changes no line the
    reviewer read: launch no new review, brief or Delta, and let the push
    decide. It still misses when main changed a rule file (`AGENTS.md`,
    `CLAUDE.md`, `.adr.yaml`, `.adr/`, `.claude/`) or when the resolution adds a
@@ -93,7 +95,8 @@ rebase onto moved main
    │     └─▶ push ─▶ hook: same patch, or notes moved
    │                   └─ pass carried ─▶ lands, no review
    │
-   └─ code resolved by hand
+   └─ anything else: code resolved by hand, a rule file changed on main,
+      or a line the resolution adds
          └─▶ F2 again ─▶ push ─▶ hook refuses: review owed
                                    └─▶ F4b, round 1 on the new patch
 ```
@@ -103,13 +106,13 @@ review, and only a refusal that names the review sends the session back.
 
 ## Phases
 
-- [ ] Phase 1 — reword F1, F8 and F4b step 6 of the worktree-task skill:
+- [x] Phase 1 — reword F1, F8 and F4b step 6 of the worktree-task skill:
   `parts/workflow/skills/worktree-task/SKILL.md`. The published text carries
   no ADR numbers and no `work.*` rule ids (`scripts/check.sh` refuses both);
   name the journal words `reviewed-by-patch` and `reviewed-by-patch-notes-moved`
   instead. Becomes one commit, `docs(workflow): a rebase asks no new review`.
-- [ ] Phase 2 — close the plan and the changelog line if the repository keeps
-  one: `docs/plans/2026-11-27-rebase-asks-no-new-review.md`. Becomes the
+- [x] Phase 2 — file the greenbelay keep-both fixture follow-up (inbox, not an
+  issue: see the Decision log), then close the plan: `docs/plans/2026-11-27-rebase-asks-no-new-review.md`. Becomes the
   closing commit.
 
 ### 🧑 Your steps
@@ -122,24 +125,53 @@ review, and only a refusal that names the review sends the session back.
   pass over a conflict-only rebase and over a CHANGELOG-context move (read in
   `implementation_review.rs`; its tests are in `greenbelay/tests/implementation_review.rs`).
   The "keep both" case has no fixture (the notes-moved test at
-  `greenbelay/tests/implementation_review.rs:1601` moves an intro line only); a
-  test for it is filed against greenbelay as a follow-up.
+  `greenbelay/tests/implementation_review.rs:1633`, `a_rebase_that_only_moves_changelog_context_keeps_the_review`,
+  moves an intro line only; the `:1601` first cited is its helper).
   Not run against a real #636 push: the first real push after this change is
   the live check (see Verification).
+- 2026-11-27 — the keep-both fixture follow-up went to greenbelay's inbox
+  (a one-line follow-up with the three cases: keep both, rule file changed on
+  main, `## Unreleased` put back), not a GitHub issue: the follow-up route is
+  the inbox, and an issue is an outward-facing post the person did not ask for.
+  It has no issue number to record.
+- 2026-11-27 — dropped "record the head before the rebase" from Behaviour 1:
+  the skill never needed it (implementation review, finding 2).
+- 2026-11-27 — F8 now skips F2 after a conflict-free rebase even when main
+  changed code beside the branch's lines. The panel approved it; the review
+  asked that a person see it: it is the one verification change here.
 
 ## Verification
 
 Phase 1 is wording, so its check is a focused one plus one live check:
 
 1. `sh scripts/check.sh` exits 0 (no machine-specific pattern in `parts/`).
+   Input: `sh scripts/check.sh` in the worktree. Expected: exit 0. Actual: exit 0
+   (run on the final tree); the commit gate also passed 25 checks on each commit.
 2. `git diff origin/main -- parts` shows only the three passages above, and
    `grep -n 'reviewed-by-patch' parts/workflow/skills/worktree-task/SKILL.md`
    finds the journal words in F1 and F4b.
+   Input: `git diff --stat origin/main -- parts` and the grep. Expected: one
+   file, the words in F1 and F4b. Actual: one file, `worktree-task/SKILL.md`
+   (25 insertions, 4 deletions), in F1, F4b step 6 and F8; the words are at
+   lines 183 (F1) and 379, 381 (F4b).
 3. Read-through against the hook source: every claim in the new text
    (what carries, what does not) is in `implementation_review.rs` lines 32–43
    and `notes_patch`; nothing is claimed beyond them.
+   Input: the implementation review read every claim against the source.
+   Expected: no claim beyond it. Actual: three overstated (a push that goes
+   through proves a carry only with the journal word, the notes key's
+   rule-file condition, the root-only `CHANGELOG.md`); all three reworded, and
+   the Delta review marked them resolved. Profiles carry under the same patch
+   keys (`profile_patch_file`, line 936).
 4. Live, after the release is installed: the next conflict-only CHANGELOG
    rebase pushes with no review round, and `greenbelay` journals
    `reviewed-by-patch-notes-moved`. Until then it is recorded as unobserved.
+
+## Implementation review
+
+- Round 1, approve-with-changes (41k tokens, 61 s): 6 findings; the plan's tick, results and wording fixed.
+- Delta, approve-with-changes (29k tokens, 24 s): findings 2, 4, 5, 6 resolved; 1 and 3 closed in this commit.
+- Finding 7, `deliberate: one skill line is not re-wrapped (cosmetic); reflowing would void the reviewed tree and no third pass exists`.
+- Not traced: that a conflict-free rebase skips F2 even when main changed code beside the branch's lines; see the Decision log.
 
 <!-- panel: repos=skills adds= reviewers=backend body-sha=f8dc56758ad6 -->
