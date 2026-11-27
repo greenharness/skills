@@ -1,0 +1,65 @@
+<!-- greengate:start -->
+
+## Git hooks (greengate)
+
+This repository enforces pre-commit / pre-push checks. Ask the registry
+rather than guessing before assuming a change is safe:
+
+```sh
+greengate list --json
+greengate list --json --stage pre-push --pushed  # exactly what pushing next gates
+```
+
+Each check reports its _effective_ severity (`block`/`warn`, including any
+`greengate.severity.*` override) and whether it fires here. The same output
+carries `commit_style`: the subject and description limits `commit-msg`
+enforces, and where the type's gitmoji is placed. It also carries
+`branch_style`: name a branch `<prefix>/<name>` BEFORE creating it —
+prefixes are add, automation, build, chore, docs, feat, fix, hotfix, perf, refactor, remove, revert, style, test — because `pre-push` refuses a
+new branch that breaks the pattern, at the end of the work instead of the
+start.
+
+`git commit` and `git push` both run their checks first, and neither is
+instant: pre-commit can invoke formatters, linters or clippy (a workspace
+build), and pre-push gates include the test suite. Push with `greengate land`:
+it runs every push gate the push owes on a snapshot of the exact commit,
+with no connection open, then pushes, and the push itself skips them (git
+connects before pre-push runs, and a remote may drop the idle session while a
+suite runs). A bare `git push` whose push gates have not run on its tree is
+refused at once (`greengate.pushGates refuse`, the default): run `greengate land`, or
+`greengate rehearse --wait` (or `greengate run --stamp`) first and push again. Push a
+release tag with `greengate land --tag <name>`: it runs the release audits on the
+tagged commit first, which a branch rehearsal never does. Where
+`greengate.rehearseOnCommit` is on, every commit already starts that rehearsal in
+the background and `--wait` only follows it. Give these commands the
+longest timeout your tooling allows, never its default: here a check is
+killed only after 2m00s of silence or 1h00m in total
+(`greengate.idleTimeout` / `greengate.timeout`) — and on Linux and macOS a silent
+check whose processes are busy on CPU is not "silent": it can run to the
+1h00m ceiling. A check waiting on a cargo or uv lock answers to
+`greengate.lockWait` instead, the silence budget stretches with the machine's
+load (`greengate.idleLoadScale`), and a heavy check (clippy, a test suite) may
+first queue for a host slot (`greengate.hostSlots`) while other worktrees run
+theirs. A test suite may legitimately run for most of that. If your tooling caps a foreground command below it,
+run the command in the background and read its result when it exits —
+while it runs, a line a minute on stderr says which check is alive and
+when it last printed. A push killed mid-suite pushed nothing; a commit
+killed mid-check committed nothing, and your unstaged work stays parked
+until the next run says how to recover it. Neither is the checks failing —
+it is the timeout. Run both bare and check the effect (`git log --oneline
+-1`, `git ls-remote origin <branch>`): trimming their output with `| tail`
+reports the pipe's exit status, so a killed or rejected run reads as
+success.
+
+Never bypass with `--no-verify`. To change enforcement, downgrade it
+intentionally instead:
+
+```sh
+git config greengate.severity.<check-id> warn
+```
+
+`commit-msg` takes neither `hook.skip` nor a severity override. Write the
+message it asks for, or change what it asks for — `greengate setup`, or
+`greengate.commit.*` directly.
+
+<!-- greengate:end -->
