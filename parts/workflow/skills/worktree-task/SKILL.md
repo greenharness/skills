@@ -177,6 +177,21 @@ below names one of them.
 
 - **F1. Rebase.** `git fetch origin -q && git rebase origin/main`. Resolve
   conflicts in place, never in the live checkout.
+  - **A rebase does not start a new review.** Whether F4b's earlier pass
+    still holds is the hook's judgement at the push, not yours: go on to F6
+    and let `amont land` or `git push` answer. A push that goes through
+    needed none (the hook journals `reviewed-by-patch` or
+    `reviewed-by-patch-notes-moved`). A refusal that names the review is
+    an expected answer, not a failed check: it sends you back to F4b.
+  - **A conflict that only keeps both sides of the release notes**
+    (`CHANGELOG.md` and nothing else) usually changes no line the reviewer
+    read: launch no review, brief or Delta, and let the push decide. It
+    still misses when main changed a rule file (`AGENTS.md`, `CLAUDE.md`,
+    `.adr.yaml`, `.adr/`, `.claude/`), or when the resolution adds a line
+    of its own (an `## Unreleased` heading put back after a release).
+  - **Anything else resolved by hand** (code, tests, a rule file) changes
+    the patch: run F2 again on what you touched, and expect the push to ask
+    for the review it is owed.
 - **F2. Verification loop**. Check
   the changed behaviour observably, against the plan's Verification section.
   When the repository has a `verify-*` skill, follow it for this check; when
@@ -359,9 +374,12 @@ below names one of them.
      same landed plan and `## Code review` line, its reviewed commit an
      ancestor of the pushed one after the merge-base, and
      implementation-review passed the new tree. A rebase carries nothing by
-     ancestry, so its profiles re-run unless the branch patch is unchanged
-     or only the root `CHANGELOG.md`'s context moved (journalled
-     `reviewed-by-patch-notes-moved`): then no delta is due.
+     ancestry, so its profiles re-run unless the hook carries the pass: the
+     branch patch is unchanged and no rule file moved (journalled
+     `reviewed-by-patch`), or only the root `CHANGELOG.md`'s context moved
+     (journalled `reviewed-by-patch-notes-moved`). The same carry covers
+     `implementation-review` itself: then no round and no delta is due. Never
+     launch a round to find out whether a pass carries; the push answers (F1).
      A resumed profile round may omit its `Profile:` line; it keeps its
      launch's. There is no
      third pass: a `rework` that survives the Delta goes to the person with
@@ -540,7 +558,9 @@ below names one of them.
      the server up.
   - An approval given before the person had a guide is not informed. Hold
     the push, give the guide, and ask again.
-- **F8.** Any code change or rebase after F4 returns to F1.
+- **F8.** Any code change after F4 returns to F1. A rebase returns to F1
+  only to run F2 again when its conflict resolution touched something beyond
+  `CHANGELOG.md`; the review follows the hook's answer at the push (F1).
 - **F9. Merge on green**. Do not stop at an open pull
   request, and do not ask: run the `merge-when-green` skill on every
   implementation PR this finish opened. It merges once every check on the
