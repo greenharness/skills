@@ -18,6 +18,12 @@ Standing rule: **never use `gh pr merge --auto`** on a repository without branch
    gh pr view <n> --repo <owner>/<repo> --json number,url,headRefName
    ```
 
+1b. **Docs-only exemption: no checks to wait for.** When the repository has no CI at all and the PR changes only documentation, there is nothing to poll: merge after step 3's read. Both must hold:
+   - **No CI on the repository:** no workflow file under `.github/workflows/` or `.forgejo/workflows/`, and no Actions run recorded for any commit (`actions/tasks` is empty, or the forge has no workflows). A repository with a workflow file is not exempt, even if its runs are slow or have not started.
+   - **Docs-only PR:** every changed file is under `docs/` or is a root `*.md`. Check with `git diff --name-only <base>...<head>` on the PR head, read as its own step. Any other path (code, tests, config, a workflow file) puts the PR back on the normal poll.
+
+   Say in the report which exemption applied and why, in one line. Exemption is a per-PR judgement: the next PR in the same repository is checked again.
+
 2. **Poll checks to completion — as a loop you can watch, not a single blind wait.** `gh run watch --exit-status` is unreliable (it has returned exit 0 for runs that actually concluded `failure` — see `~/.claude/CLAUDE.md` § Before pushing). Poll the PR's checks directly instead:
    ```bash
    gh pr checks <n> --repo <owner>/<repo>
