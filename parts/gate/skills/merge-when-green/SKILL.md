@@ -62,9 +62,9 @@ Standing rule: **never use `gh pr merge --auto`** on a repository without branch
 
 4. **If all required checks are `conclusion: success`:**
    ```bash
-   gh pr merge <n> --repo <owner>/<repo> --squash
+   gh pr merge <n> --repo <owner>/<repo> --merge
    ```
-   (Squash is this user's default merge strategy unless told otherwise.)
+   (An agent merges with a merge commit, never `--squash`, on either forge. An agent's commits are already logical steps, unlike a human's trial and error, and squashing them throws that history away and breaks `git merge-base --is-ancestor` and bisect. The forges still allow squash, because the person may squash their own PRs.)
 
 5. **If any check failed or is still running when asked to report status:** don't merge. Report which check(s) are red/pending and stop — let the user decide whether to wait, fix, or override.
 
