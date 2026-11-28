@@ -69,7 +69,13 @@ The person's rule: *if the changes are on origin main, it's safe to delete.*
 A worktree, detached or on a branch, earns SWEEP by content alone when:
 
 - its HEAD is an ancestor of `origin/<base>` (after the per-repo fetch), so
-  removing it loses no commit;
+  removing it loses no commit, **or** its content is already there:
+  `git merge-tree --write-tree origin/<base> HEAD` gives exactly
+  `origin/<base>^{tree}`, so merging it would change nothing. That is how a
+  squash-merged branch is recognised offline, since its commits are never
+  ancestors of base. A conflict (base later rewrote the same lines), a
+  revert on base or a failed git reads as not contained, and the branch
+  goes on to the PR gates;
 - the tree is clean, except for uncommitted edits to `CLAUDE.md` /
   `AGENTS.md`, which are generated guidance and are restored (`git restore`)
   just before removal, logged as `DROPPED`;
