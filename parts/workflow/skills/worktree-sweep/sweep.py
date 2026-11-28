@@ -556,11 +556,28 @@ def head_idle_hours(wt: Worktree) -> float | None:
     return None
 
 
+def content_on_base(wt: Worktree, repo: Repo) -> bool:
+    """True when merging HEAD into origin/<base> would change nothing: every
+    line the branch adds is already on base. This is how a squash-merged
+    branch is recognised offline, since its commits are never ancestors of
+    base. A conflict, a missing merge base or a failed git all read as
+    False, so the branch is held and goes on to the PR gates."""
+    ok, merged = git(wt.path, "merge-tree", "--write-tree", f"origin/{repo.base}", "HEAD")
+    if not ok or not merged:
+        return False
+    ok, base_tree = git(wt.path, "rev-parse", f"origin/{repo.base}^{{tree}}")
+    return ok and merged.splitlines()[0] == base_tree
+
+
 def content_gate(wt: Worktree, repo: Repo) -> bool:
-    """Decide by content alone: HEAD on origin/<base> and nothing else held.
-    Returns True when it set a final verdict. Runs after the dirty check, so
-    the tree is already clean save for DROPPABLE_DIRTY files."""
+    """Decide by content alone: HEAD on origin/<base>, or its whole content
+    already there (a squash merge), and nothing else held. Returns True when
+    it set a final verdict. Runs after the dirty check, so the tree is
+    already clean save for DROPPABLE_DIRTY files."""
     ok, _ = git(wt.path, "merge-base", "--is-ancestor", "HEAD", f"origin/{repo.base}")
+    where = f"HEAD on origin/{repo.base}"
+    if not ok and content_on_base(wt, repo):
+        ok, where = True, f"content already on origin/{repo.base}"
     if not ok:
         # Not on base (or git failed -- the safe reading). A branch goes on to
         # the PR gates; a detached HEAD has nothing else to be traced by.
@@ -575,12 +592,12 @@ def content_gate(wt: Worktree, repo: Repo) -> bool:
     if idle < MIN_IDLE_HOURS:
         if wt.branch is None:
             wt.verdict = HOLD
-            wt.reason = f"on origin/{repo.base}, but HEAD moved {idle:.0f}h ago (< {MIN_IDLE_HOURS}h)"
+            wt.reason = f"{where}, but HEAD moved {idle:.0f}h ago (< {MIN_IDLE_HOURS}h)"
             return True
         return False  # a fresh task branch: let the PR gates speak
     wt.verdict = SWEEP
     dropped = f", drops edits to {', '.join(wt.drop)}" if wt.drop else ""
-    wt.reason = f"HEAD on origin/{repo.base}, nothing else held{dropped}"
+    wt.reason = f"{where}, nothing else held{dropped}"
     return True
 
 
